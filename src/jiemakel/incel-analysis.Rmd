@@ -1,0 +1,154 @@
+---
+title: "Incel analysis"
+date: "`r Sys.Date()`"
+output: 
+  html_notebook:
+    toc: yes
+    code_folding: hide
+  md_document:
+    variant: gfm 
+    toc: yes
+---
+
+```{r setup}
+library(ggbeeswarm)
+library(gt)
+source(here::here("src/common_basis.R"))
+```
+
+# Post count distribution (overall/lounge)
+
+```{r}
+quantiles <- seq(0,1,by=0.05)
+incel_posters_a %>%
+  select(poster_total_posts) %>%
+  collect() %>%
+  reframe(
+    quantile=quantiles,
+    poster_total_posts=quantile(poster_total_posts,quantiles)
+  ) %>%
+  inner_join(
+    incel_posts_c %>%
+      count(poster_id) %>%
+      select(n) %>%
+      collect() %>%
+      reframe(
+        quantile=quantiles,
+        poster_lounge_posts=quantile(n,quantiles)
+    ),
+    join_by(quantile)
+  ) %>%
+  gt(rowname_col = "quantile") %>%
+  fmt_percent(quantile, drop_trailing_zeros = TRUE) %>%
+  fmt_number(columns = c(poster_total_posts,poster_lounge_posts), drop_trailing_zeros = TRUE)
+```
+
+ * As expected, the distribution is very skewed. Half the posters have less than 100 posts, while the top 25% have more than 500. 
+
+# Interaction between join date and total / lounge posts
+
+```{r}
+incel_posters_a %>%
+  filter(poster_joined>"1970-01-01") %>%
+  ggplot(aes(x=poster_joined,y=poster_total_posts)) +
+  geom_point(size=0.5) +
+  geom_smooth(method="lm", formula="y~x") +
+  theme_hsci_discrete() +
+  scale_y_continuous(labels=scales::number) +
+  xlab("Poster join date") +
+  ylab("Total posts") +
+  ggtitle("Total posts")
+```
+
+```{r}
+incel_posts_c %>%
+  count(poster_id) %>%
+  inner_join(incel_posters_c, join_by(poster_id)) %>%
+  filter(poster_joined>"1970-01-01") %>%
+  ggplot(aes(x=poster_joined,y=n)) +
+  geom_point(size=0.5) +
+  geom_smooth(method="lm", formula="y~x") +
+  theme_hsci_discrete() +
+  scale_y_continuous(labels=scales::number) +
+  xlab("Poster join date") +
+  ylab("Lounge posts") +
+  ggtitle("Lounge posts")
+```
+
+ * The earlier you join, the more likely you are to have more posts, but there doesn't seem to be a discernible pattern for when the real "heavy hitters" have joined.
+
+# Board rhythm
+
+```{r}
+incel_posts_c %>% 
+  mutate(hour=hour(time_posted),weekday=weekday(time_posted)) %>%
+  count(weekday,hour) %>%
+  ggplot(aes(x=hour,y=n,color=as_factor(weekday))) +
+  geom_line() +
+  theme_hsci_discrete() +
+  theme(
+    legend.justification = c(1, 0), 
+    legend.position = c(0.98, 0.02), 
+    legend.background = element_blank(), 
+    legend.key = element_blank()) +
+  xlab("Hour (UTC)") +
+  ylab("Total number of posts") +
+  labs(color="Day of the week") +
+  ggtitle("Posts by the time of day")
+```
+
+```{r}
+poster_type <- incel_posts_c %>%
+  count(poster_id) %>%
+  mutate(poster_type=if_else(n>=100,"top","other")) %>%
+  select(poster_id, poster_type)
+
+incel_posts_c %>% 
+  mutate(hour=hour(time_posted)) %>%
+  inner_join(poster_type, join_by(poster_id)) %>%
+  count(poster_type,hour) %>%
+  group_by(poster_type) %>%
+  mutate(proportion=n/sum(n)) %>%
+  ungroup() %>%
+  ggplot(aes(x=hour,y=proportion,color=poster_type)) +
+  geom_line() +
+  theme_hsci_discrete() +
+  theme(
+    legend.justification = c(1, 0), 
+    legend.position = c(0.98, 0.02), 
+    legend.background = element_blank(), 
+    legend.box.just = "bottom", 
+    legend.key = element_blank(), 
+    legend.box = "horizontal") +
+  scale_y_continuous(labels=scales::percent_format(accuracy=1)) +
+  xlab("Hour (UTC)") +
+  ylab("Proportion of posts") +
+  labs(color="Poster type") +
+  ggtitle("Proportion of posts by the time of day of top/other users")
+```
+
+ * There doesn't seem to be a difference in daily rhythms between top posters and others. 
+ * How international is the forum? 
+ 
+## Are there distinct subpopulations?
+ 
+```{r}
+incel_posts_c %>% 
+  mutate(hour=hour(time_posted)) %>%
+  count(poster_id,hour) %>%
+  group_by(poster_id) %>%
+  filter(sum(n)>=100) %>% # limit to users with enough data to get any pattern
+  mutate(proportion=n/sum(n)) %>%
+  ungroup() %>%
+  ggplot(aes(x=hour,y=proportion)) +
+  geom_quasirandom(size=0.5) +
+  coord_cartesian(ylim=c(0,0.25)) +
+  theme_hsci_discrete() +
+  scale_y_continuous(labels=scales::percent_format(accuracy=1)) +
+  xlab("Hour (UTC)") +
+  ylab("Proportion of posts") +
+  labs(color="Poster type") +
+  ggtitle("Proportion of posts by the time of day")
+```
+ 
+  * There do not seem to be clearly distinct time profiles with large groups of users. There may be some variation in UTC night time posting behaviour (3-12 UTC)
