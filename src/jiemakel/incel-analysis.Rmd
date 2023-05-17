@@ -2,12 +2,12 @@
 title: "Incel analysis"
 date: "`r Sys.Date()`"
 output: 
-  html_notebook:
-    toc: yes
-    code_folding: hide
   md_document:
     variant: gfm 
     toc: yes
+  html_notebook:
+    toc: yes
+    code_folding: hide
 ---
 
 ```{r setup}
@@ -16,11 +16,26 @@ library(gt)
 source(here::here("src/common_basis.R"))
 ```
 
+# Post count distribution through time
+
+```{r}
+incel_posts_c %>%
+  count(year=year(time_posted),month=month(time_posted)) %>%
+  mutate(month=as.Date(str_c(year,'-',month,'-01'))) %>%
+  ggplot(aes(x=month,y=n)) +
+  geom_line() +
+  scale_y_continuous(labels=scales::number) + 
+  xlab("Month") +
+  ylab("Posts") +
+  theme_hsci_discrete()
+```
+
+
 # Post count distribution (overall/lounge)
 
 ```{r}
 quantiles <- seq(0,1,by=0.05)
-incel_posters_a %>%
+incel_posters_c %>%
   select(poster_total_posts) %>%
   collect() %>%
   reframe(
@@ -48,7 +63,7 @@ incel_posters_a %>%
 # Interaction between join date and total / lounge posts
 
 ```{r}
-incel_posters_a %>%
+incel_posters_c %>%
   filter(poster_joined>"1970-01-01") %>%
   ggplot(aes(x=poster_joined,y=poster_total_posts)) +
   geom_point(size=0.5) +
@@ -98,6 +113,29 @@ incel_posts_c %>%
 ```
 
 ```{r}
+weekdays <- tribble(~index,~weekday,
+                    0,"Mon",
+                    1,"Tue",
+                    2,"Wed",
+                    3,"Thu",
+                    4,"Fri",
+                    5,"Sat",
+                    6,"Sun")
+incel_posts_c %>% 
+  mutate(weekday=weekday(time_posted)) %>%
+  count(weekday) %>%
+  ggplot(aes(x=weekday,y=n)) +
+  geom_col() +
+  theme_hsci_discrete() +
+  scale_x_continuous(breaks=weekdays$index, labels=weekdays$weekday) +
+  scale_y_continuous(labels=scales::number) +
+  xlab("Day of the week") +
+  ylab("Total number of posts") +
+  ggtitle("Posts by day of the week")
+```
+
+
+```{r}
 poster_type <- incel_posts_c %>%
   count(poster_id) %>%
   mutate(poster_type=if_else(n>=100,"top","other")) %>%
@@ -128,6 +166,7 @@ incel_posts_c %>%
 ```
 
  * There doesn't seem to be a difference in daily rhythms between top posters and others. 
+ * Interestingly, no big differences by day of week
  * How international is the forum? 
  
 ## Are there distinct subpopulations?
@@ -141,14 +180,33 @@ incel_posts_c %>%
   mutate(proportion=n/sum(n)) %>%
   ungroup() %>%
   ggplot(aes(x=hour,y=proportion)) +
-  geom_quasirandom(size=0.5) +
+  geom_quasirandom(size=0.25) +
   coord_cartesian(ylim=c(0,0.25)) +
   theme_hsci_discrete() +
   scale_y_continuous(labels=scales::percent_format(accuracy=1)) +
   xlab("Hour (UTC)") +
   ylab("Proportion of posts") +
   labs(color="Poster type") +
-  ggtitle("Proportion of posts by the time of day")
+  ggtitle("Proportion of posts by the time of day for each individual user")
 ```
  
   * There do not seem to be clearly distinct time profiles with large groups of users. There may be some variation in UTC night time posting behaviour (3-12 UTC)
+  
+# How long are people active by year joined
+
+```{r}
+incel_posts_c %>%
+    group_by(poster_id) %>%
+    summarise(earliest_post=min(time_posted),latest_post=max(time_posted), .groups="drop") %>%
+    mutate(earliest_post_year=year(earliest_post), active_period_days=sql("timestampdiff(day,earliest_post,latest_post)")) %>%
+  ggplot(aes(x=earliest_post_year,y=active_period_days)) + 
+  geom_quasirandom(size=0.25) +
+  theme_hsci_discrete() +
+  xlab("Year of earliest post") +
+  ylab("Time between earliest and latest post (days)") +
+  ggtitle("Time between earliest and latest post by year joined")
+```
+
+ * In 2019, there seem to have been more people joining who stayed on longer.
+ 
+ 

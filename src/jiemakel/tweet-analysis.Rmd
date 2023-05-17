@@ -1,0 +1,93 @@
+---
+title: "Lynching analysis"
+date: "`r Sys.Date()`"
+output: 
+  md_document:
+    variant: gfm 
+    toc: yes
+  html_notebook:
+    toc: yes
+    code_folding: hide
+---
+
+```{r setup}
+library(ggbeeswarm)
+library(gt)
+source(here::here("src/common_basis.R"))
+```
+
+```{r}
+lynching_tweets_a %>%
+  count(year_created_at,month_created_at) %>%
+  mutate(month=as.Date(str_c(year_created_at,'-',month_created_at,'-01'))) %>%
+  ggplot(aes(x=month,y=n)) +
+  geom_line() +
+  scale_y_continuous(labels=scales::number) + 
+  xlab("Month") +
+  ylab("Tweets") +
+  theme_hsci_discrete() +
+  ggtitle("Number of tweets through time in the lynching corpus")
+```
+
+```{r}
+abortion_tweets_a %>%
+  count(year_created_at,month_created_at) %>%
+  mutate(month=as.Date(str_c(year_created_at,'-',month_created_at,'-01'))) %>%
+  ggplot(aes(x=month,y=n)) +
+  geom_line() +
+  scale_y_continuous(labels=scales::number) + 
+  xlab("Month") +
+  ylab("Tweets") +
+  theme_hsci_discrete() +
+  ggtitle("Number of tweets through time in the abortion corpus")
+```
+
+# Monologues, dialogues and trialogues in the lynching corpus
+
+## Overall
+
+```{r}
+lynching_conversations_c %>%
+  select(conversation_id, orig_author_id=author_id) %>%
+  inner_join(lynching_tweets_c %>% select(conversation_id, first_tweet_id=tweet_id, first_author_id=author_id), join_by(conversation_id)) %>%
+  inner_join(lynching_tweets_c %>% select(conversation_id, second_tweet_id=tweet_id, second_author_id=author_id, second_parent_tweet_id=in_reply_to), join_by(conversation_id,first_tweet_id==second_parent_tweet_id)) %>%
+  inner_join(lynching_tweets_c %>% select(conversation_id, third_tweet_id=tweet_id, third_author_id=author_id, third_parent_tweet_id=in_reply_to), join_by(conversation_id,second_tweet_id==third_parent_tweet_id)) %>%
+  mutate(
+    type = case_when(
+      first_author_id == second_author_id & second_author_id == third_author_id ~ "monologue",
+      first_author_id == third_author_id ~ "dialogue",
+      T ~ "trialogue"      
+    )
+  ) %>% 
+  count(type) %>%
+  mutate(proportion=n/sum(n)) %>%  
+  arrange(desc(n)) %>%
+  gt(rowname_col="type") %>%
+  fmt_integer(n) %>%
+  fmt_percent(proportion)
+```
+
+## When the middle tweet contains fuck*
+
+```{r}
+lynching_conversations_c %>%
+  select(conversation_id, orig_author_id=author_id) %>%
+  inner_join(lynching_tweets_c %>% select(conversation_id, first_tweet_id=tweet_id, first_author_id=author_id), join_by(conversation_id)) %>%
+  inner_join(lynching_tweets_a %>% 
+  filter(sql("MATCH(text) AGAINST('fuck*' IN BOOLEAN MODE)")) %>% select(conversation_id, second_tweet_id=tweet_id, second_author_id=author_id, second_parent_tweet_id=in_reply_to) %>%
+  compute_c(), join_by(conversation_id,first_tweet_id==second_parent_tweet_id)) %>%
+  inner_join(lynching_tweets_c %>% select(conversation_id, third_tweet_id=tweet_id, third_author_id=author_id, third_parent_tweet_id=in_reply_to), join_by(conversation_id,second_tweet_id==third_parent_tweet_id)) %>%
+  mutate(
+    type = case_when(
+      first_author_id == second_author_id & second_author_id == third_author_id ~ "monologue",
+      first_author_id == third_author_id ~ "dialogue",
+      T ~ "trialogue"      
+    )
+  ) %>% 
+  count(type) %>%
+  mutate(proportion=n/sum(n)) %>%
+  arrange(desc(n)) %>%
+  gt(rowname_col="type") %>%
+  fmt_integer(n) %>%
+  fmt_percent(proportion)
+```

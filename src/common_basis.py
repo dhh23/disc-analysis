@@ -11,6 +11,7 @@ from sqlalchemy.future import Engine, Connection
 def get_connection() -> (Engine, Connection):
     eng = None
     con = None
+    password = None
     while con is None:
         with here("db_params.yaml").open('r') as f:
             db_params = yaml.safe_load(f)
@@ -45,12 +46,8 @@ def get_connection() -> (Engine, Connection):
     return eng, con
 
 
-eng, con = get_connection()
-del get_connection
-
-
 def set_session_storage_engine(con: Connection, engine: str):
     con.execute(text("SET SESSION storage_engine="+engine))
 
 
-__all__ = ["eng", "con", "set_session_storage_engine"]
+__all__ = ["get_connection", "set_session_storage_engine"]
