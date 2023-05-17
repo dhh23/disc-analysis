@@ -70,12 +70,14 @@ lynching_conversations_c %>%
 ## When the middle tweet contains fuck*
 
 ```{r}
+lynching_tweets_with_fuck_c <- lynching_tweets_a %>% 
+  filter(sql("MATCH(text) AGAINST('fuck*' IN BOOLEAN MODE)")) %>% select(conversation_id, second_tweet_id=tweet_id, second_author_id=author_id, second_parent_tweet_id=in_reply_to) %>%
+  compute_c()
+
 lynching_conversations_c %>%
   select(conversation_id, orig_author_id=author_id) %>%
   inner_join(lynching_tweets_c %>% select(conversation_id, first_tweet_id=tweet_id, first_author_id=author_id), join_by(conversation_id)) %>%
-  inner_join(lynching_tweets_a %>% 
-  filter(sql("MATCH(text) AGAINST('fuck*' IN BOOLEAN MODE)")) %>% select(conversation_id, second_tweet_id=tweet_id, second_author_id=author_id, second_parent_tweet_id=in_reply_to) %>%
-  compute_c(), join_by(conversation_id,first_tweet_id==second_parent_tweet_id)) %>%
+  inner_join(lynching_tweets_with_fuck_c, join_by(conversation_id,first_tweet_id==second_parent_tweet_id)) %>%
   inner_join(lynching_tweets_c %>% select(conversation_id, third_tweet_id=tweet_id, third_author_id=author_id, third_parent_tweet_id=in_reply_to), join_by(conversation_id,second_tweet_id==third_parent_tweet_id)) %>%
   mutate(
     type = case_when(
