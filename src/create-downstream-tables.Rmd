@@ -1,0 +1,166 @@
+---
+title: "Downstream table generation"
+date: "`r Sys.Date()`"
+output: 
+  html_notebook:
+    toc: yes
+    code_folding: hide
+  md_document:
+    variant: gfm 
+    toc: yes
+---
+
+```{r setup}
+source(here::here("src/common_basis.R"))
+```
+
+```{r lynching_matching_tweet_ids_a}
+lynching_matching_tweet_ids_a_tmp <- lynching_tweets_a %>% 
+    filter(sql("MATCH(text) AGAINST('+(india indian america american) +(lynching lynchings lynch lynched)' IN BOOLEAN MODE)")) %>% 
+    select(tweet_id) %>% 
+    compute_a(unique_indexes=c("tweet_id"))
+
+lynching_matching_tweet_ids_a <- lynching_matching_tweet_ids_a_tmp %>%
+  union(
+    lynching_matching_tweet_ids_a_tmp %>% 
+      inner_join(lynching_tweets_a, join_by(tweet_id==retweet_of)) %>% 
+      select(tweet_id)
+  ) %>%
+  compute_a("lynching_matching_tweet_ids_a", temporary=FALSE, overwrite=TRUE, unique_indexes=c("tweet_id"))
+
+rm(lynching_matching_tweet_ids_a_tmp)
+```
+
+```{r abortion_matching_tweet_ids_a}
+abortion_matching_tweet_ids_a_tmp <- abortion_tweets_a %>% 
+    filter(sql("MATCH(text) AGAINST('+(abortion fetus fetal) +personhood' IN BOOLEAN MODE)")) %>% 
+    select(tweet_id) %>% 
+    compute_a(unique_indexes=c("tweet_id"))
+
+abortion_matching_tweet_ids_a <- abortion_matching_tweet_ids_a_tmp %>%
+  union(
+    abortion_matching_tweet_ids_a_tmp %>% 
+      inner_join(abortion_tweets_a, join_by(tweet_id==retweet_of)) %>% 
+      select(tweet_id)
+  ) %>%
+  compute_a("abortion_matching_tweet_ids_a", temporary=FALSE, overwrite=TRUE, unique_indexes=c("tweet_id"))
+
+rm(abortion_matching_tweet_ids_a_tmp)
+```
+
+```{r incel_sample_db}
+incel_sample_threads_a <- incel_threads_a %>%
+  slice_sample(n=1000) %>%
+  compute_a("incel_sample_threads_a", temporary=FALSE, overwrite=FALSE)
+
+incel_sample_posts_a <- incel_sample_threads_a %>% 
+  select(thread_id) %>%
+  inner_join(incel_posts_a, join_by(thread_id)) %>%
+  compute_a("incel_sample_posts_a", temporary=FALSE, overwrite=TRUE)
+
+incel_sample_users_a <- incel_sample_posts_a %>%
+  distinct(poster_id) %>%
+  inner_join(incel_posters_a, join_by(poster_id)) %>%
+  compute_a("incel_sample_users_a", temporary=FALSE, overwrite=TRUE)
+
+incel_sample_quotes_a <- incel_sample_posts_a %>%
+  select(quoting_post_id=post_id) %>%
+  inner_join(incel_quotes_a, join_by(quoting_post_id)) %>%
+  compute_a("incel_sample_quotes_a", temporary=FALSE, overwrite=TRUE)
+```
+
+```{r incel_sample_gs}
+library(googlesheets4)
+incel_sample_threads_a %>%
+  collect() %>%
+  mutate(thread_url=gs4_formula(str_c('=HYPERLINK("',thread_url,'","',thread_url,'")'))) %>%
+  sheet_write(ss="1HvQ6CgJ0Kgg4VyLbuvLU02dsc6cRolJcc5LB7_KN5-U", sheet="incel_sample_threads")
+
+incel_sample_posts_a %>%
+  arrange(thread_id, post_order_in_thread) %>%
+  collect() %>%
+  mutate(post_html=str_sub(post_html,1,50000)) %>%
+  sheet_write(ss="1HvQ6CgJ0Kgg4VyLbuvLU02dsc6cRolJcc5LB7_KN5-U", sheet="incel_sample_posts")
+
+incel_sample_users_a %>%
+  collect() %>%
+  sheet_write(ss="1HvQ6CgJ0Kgg4VyLbuvLU02dsc6cRolJcc5LB7_KN5-U", sheet="incel_sample_users")
+
+incel_sample_quotes_a %>%
+  collect() %>%
+  sheet_write(ss="1HvQ6CgJ0Kgg4VyLbuvLU02dsc6cRolJcc5LB7_KN5-U", sheet="incel_sample_quotes")
+
+```
+
+```{r abortion_sample_a}
+abortion_sample_conversations_a <- abortion_matching_tweet_ids_a %>% 
+  inner_join(abortion_tweets_a) %>%
+  distinct(conversation_id) %>%
+  slice_sample(n=1000) %>%
+  inner_join(abortion_conversations_a, join_by(conversation_id)) %>%
+  compute_a("abortion_sample_conversations_a", temporary=FALSE, overwrite=FALSE)
+  
+abortion_sample_tweets_a <- abortion_tweets_a %>%
+  inner_join(abortion_sample_conversations_a %>% select(conversation_id), join_by(conversation_id)) %>%
+  compute_a("abortion_sample_tweets_a", temporary=FALSE, overwrite=TRUE)
+
+abortion_sample_tweet_mentions_a <- abortion_sample_tweets_a %>%
+  select(tweet_id) %>%
+  inner_join(abortion_tweet_mentions_a, join_by(tweet_id)) %>%
+  compute_a("abortion_sample_tweet_mentions_a", temporary=FALSE, overwrite=TRUE)
+
+abortion_sample_users_a <- abortion_sample_tweets_a %>%
+  select(user_id=author_id) %>%
+  union_all(
+    abortion_sample_tweet_mentions_a %>% select(user_id)
+  ) %>%
+  distinct(user_id) %>%
+  inner_join(abortion_users_a, join_by(user_id)) %>%
+  compute_a("abortion_sample_users_a", temporary=FALSE, overwrite=TRUE)
+
+abortion_sample_tweet_hashtags_a <- abortion_sample_tweets_a %>%
+  select(tweet_id) %>%
+  inner_join(abortion_tweet_hashtags_a, join_by(tweet_id)) %>%
+  compute_a("abortion_sample_tweet_hashtags_a", temporary=FALSE, overwrite=TRUE)
+
+```
+
+```{r abortion_sample_gs}
+abortion_sample_conversations_a %>%
+  mutate(text_hash=hex(text_hash)) %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  mutate(tweet_id=gs4_formula(str_c('=HYPERLINK("https://twitter.com/u/status/',tweet_id,'","',tweet_id,'")'))) %>%
+  sheet_write(ss="1kcm359FIdI0WiQq_xdUNNDQsJQGJERl2I8cCejr-W5o", sheet="abortion_sample_conversations")
+
+abortion_sample_tweets_a %>%
+  mutate(text_hash=hex(text_hash)) %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  mutate(tweet_id=gs4_formula(str_c('=HYPERLINK("https://twitter.com/u/status/',tweet_id,'","',tweet_id,'")'))) %>%
+  sheet_write(ss="1kcm359FIdI0WiQq_xdUNNDQsJQGJERl2I8cCejr-W5o", sheet="abortion_sample_tweets")
+
+abortion_sample_users_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  mutate(
+    username=gs4_formula(str_c('=HYPERLINK("https://twitter.com/',username,'","',username,'")')),
+    url=gs4_formula(str_c('=HYPERLINK("',url,'","',url,'")'))
+  ) %>%
+  sheet_write(ss="1kcm359FIdI0WiQq_xdUNNDQsJQGJERl2I8cCejr-W5o", sheet="abortion_sample_users")
+
+abortion_sample_tweet_mentions_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  mutate(
+    tweet_id=gs4_formula(str_c('=HYPERLINK("https://twitter.com/u/status/',tweet_id,'","',tweet_id,'")'))
+  ) %>%
+  sheet_write(ss="1kcm359FIdI0WiQq_xdUNNDQsJQGJERl2I8cCejr-W5o", sheet="abortion_sample_tweet_mentions")
+
+abortion_sample_tweet_hashtags_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  mutate(tweet_id=gs4_formula(str_c('=HYPERLINK("https://twitter.com/u/status/',tweet_id,'","',tweet_id,'")'))) %>%
+  sheet_write(ss="1kcm359FIdI0WiQq_xdUNNDQsJQGJERl2I8cCejr-W5o", sheet="abortion_sample_tweet_hashtags")
+```
+
