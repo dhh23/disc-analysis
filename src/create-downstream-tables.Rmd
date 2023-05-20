@@ -14,6 +14,8 @@ output:
 source(here::here("src/common_basis.R"))
 ```
 
+# Recover seed tweets matching original queries
+
 ```{r lynching_matching_tweet_ids_a}
 lynching_matching_tweet_ids_a_tmp <- lynching_tweets_a %>% 
     filter(sql("MATCH(text) AGAINST('+(india indian america american) +(lynching lynchings lynch lynched)' IN BOOLEAN MODE)")) %>% 
@@ -48,7 +50,11 @@ abortion_matching_tweet_ids_a <- abortion_matching_tweet_ids_a_tmp %>%
 rm(abortion_matching_tweet_ids_a_tmp)
 ```
 
-```{r incel_sample_db}
+# Create data samples
+
+## Incel
+
+```{r incel_sample_a}
 incel_sample_threads_a <- incel_threads_a %>%
   slice_sample(n=1000) %>%
   compute_a("incel_sample_threads_a", temporary=FALSE, overwrite=FALSE)
@@ -91,6 +97,25 @@ incel_sample_quotes_a %>%
   sheet_write(ss="1HvQ6CgJ0Kgg4VyLbuvLU02dsc6cRolJcc5LB7_KN5-U", sheet="incel_sample_quotes")
 
 ```
+```{r incel_sample_tsv}
+incel_sample_threads_a %>% 
+  collect() %>%
+  write_tsv(here("data/input/sample/incel_sample_threads.tsv"), quote="needed", na="")
+
+incel_sample_posts_a %>% 
+  collect() %>%
+  write_tsv(here("data/input/sample/incel_sample_posts.tsv"), quote="needed", na="")
+
+incel_sample_users_a %>% 
+  collect() %>%
+  write_tsv(here("data/input/sample/incel_sample_users.tsv"), quote="needed", na="")
+
+incel_sample_quotes_a %>% 
+  collect() %>%
+  write_tsv(here("data/input/sample/incel_sample_quotes.tsv"), quote="needed", na="")
+```
+
+## Abortion
 
 ```{r abortion_sample_a}
 abortion_sample_conversations_a <- abortion_matching_tweet_ids_a %>% 
@@ -164,3 +189,134 @@ abortion_sample_tweet_hashtags_a %>%
   sheet_write(ss="1kcm359FIdI0WiQq_xdUNNDQsJQGJERl2I8cCejr-W5o", sheet="abortion_sample_tweet_hashtags")
 ```
 
+```{r abortion_sample_tsv}
+abortion_sample_conversations_a %>%
+  mutate(text_hash=hex(text_hash)) %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  write_tsv(here("data/input/sample/abortion_sample_conversations.tsv"), quote="needed", na="")
+
+abortion_sample_tweets_a %>%
+  mutate(text_hash=hex(text_hash)) %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  write_tsv(here("data/input/sample/abortion_sample_tweets.tsv"), quote="needed", na="")
+
+abortion_sample_users_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  write_tsv(here("data/input/sample/abortion_sample_users.tsv"), quote="needed", na="")
+
+abortion_sample_tweet_mentions_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  write_tsv(here("data/input/sample/abortion_sample_tweet_mentions.tsv"), quote="needed", na="")
+
+abortion_sample_tweet_hashtags_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  write_tsv(here("data/input/sample/abortion_sample_tweet_hashtags.tsv"), quote="needed", na="")
+```
+
+## Lynching
+
+```{r lynching_sample_a}
+lynching_sample_conversations_a <- lynching_matching_tweet_ids_a %>% 
+  inner_join(lynching_tweets_a) %>%
+  distinct(conversation_id) %>%
+  slice_sample(n=1000) %>%
+  inner_join(lynching_conversations_a, join_by(conversation_id)) %>%
+  compute_a("lynching_sample_conversations_a", temporary=FALSE, overwrite=FALSE)
+  
+lynching_sample_tweets_a <- lynching_tweets_a %>%
+  inner_join(lynching_sample_conversations_a %>% select(conversation_id), join_by(conversation_id)) %>%
+  compute_a("lynching_sample_tweets_a", temporary=FALSE, overwrite=TRUE)
+
+lynching_sample_tweet_mentions_a <- lynching_sample_tweets_a %>%
+  select(tweet_id) %>%
+  inner_join(lynching_tweet_mentions_a, join_by(tweet_id)) %>%
+  compute_a("lynching_sample_tweet_mentions_a", temporary=FALSE, overwrite=TRUE)
+
+lynching_sample_users_a <- lynching_sample_tweets_a %>%
+  select(user_id=author_id) %>%
+  union_all(
+    lynching_sample_tweet_mentions_a %>% select(user_id)
+  ) %>%
+  distinct(user_id) %>%
+  inner_join(lynching_users_a, join_by(user_id)) %>%
+  compute_a("lynching_sample_users_a", temporary=FALSE, overwrite=TRUE)
+
+lynching_sample_tweet_hashtags_a <- lynching_sample_tweets_a %>%
+  select(tweet_id) %>%
+  inner_join(lynching_tweet_hashtags_a, join_by(tweet_id)) %>%
+  compute_a("lynching_sample_tweet_hashtags_a", temporary=FALSE, overwrite=TRUE)
+
+```
+
+```{r lynching_sample_gs}
+lynching_sample_conversations_a %>%
+  mutate(text_hash=hex(text_hash)) %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  mutate(tweet_id=gs4_formula(str_c('=HYPERLINK("https://twitter.com/u/status/',tweet_id,'","',tweet_id,'")'))) %>%
+  sheet_write(ss="1mH8WJfL4wBvKyVRv8T1G21gemQTeNB3W-mCVTNotPbA", sheet="lynching_sample_conversations")
+
+lynching_sample_tweets_a %>%
+  mutate(text_hash=hex(text_hash)) %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  mutate(tweet_id=gs4_formula(str_c('=HYPERLINK("https://twitter.com/u/status/',tweet_id,'","',tweet_id,'")'))) %>%
+  sheet_write(ss="1mH8WJfL4wBvKyVRv8T1G21gemQTeNB3W-mCVTNotPbA", sheet="lynching_sample_tweets")
+
+lynching_sample_users_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  mutate(
+    username=gs4_formula(str_c('=HYPERLINK("https://twitter.com/',username,'","',username,'")')),
+    url=gs4_formula(str_c('=HYPERLINK("',url,'","',url,'")'))
+  ) %>%
+  sheet_write(ss="1mH8WJfL4wBvKyVRv8T1G21gemQTeNB3W-mCVTNotPbA", sheet="lynching_sample_users")
+
+lynching_sample_tweet_mentions_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  mutate(
+    tweet_id=gs4_formula(str_c('=HYPERLINK("https://twitter.com/u/status/',tweet_id,'","',tweet_id,'")'))
+  ) %>%
+  sheet_write(ss="1mH8WJfL4wBvKyVRv8T1G21gemQTeNB3W-mCVTNotPbA", sheet="lynching_sample_tweet_mentions")
+
+lynching_sample_tweet_hashtags_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  mutate(tweet_id=gs4_formula(str_c('=HYPERLINK("https://twitter.com/u/status/',tweet_id,'","',tweet_id,'")'))) %>%
+  sheet_write(ss="1mH8WJfL4wBvKyVRv8T1G21gemQTeNB3W-mCVTNotPbA", sheet="lynching_sample_tweet_hashtags")
+```
+
+```{r lynching_sample_tsv}
+lynching_sample_conversations_a %>%
+  mutate(text_hash=hex(text_hash)) %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  write_tsv(here("data/input/sample/lynching_sample_conversations.tsv"), quote="needed", na="")
+
+lynching_sample_tweets_a %>%
+  mutate(text_hash=hex(text_hash)) %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  write_tsv(here("data/input/sample/lynching_sample_tweets.tsv"), quote="needed", na="")
+
+lynching_sample_users_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  write_tsv(here("data/input/sample/lynching_sample_users.tsv"), quote="needed", na="")
+
+lynching_sample_tweet_mentions_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  write_tsv(here("data/input/sample/lynching_sample_tweet_mentions.tsv"), quote="needed", na="")
+
+lynching_sample_tweet_hashtags_a %>%
+  mutate_at(vars(matches("_id")),as.character) %>%
+  collect() %>%
+  write_tsv(here("data/input/sample/lynching_sample_tweet_hashtags.tsv"), quote="needed", na="")
+```
