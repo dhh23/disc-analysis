@@ -8,5 +8,5 @@ Thus, to get the project running, do the following:
 2. Install R dependencies with `Rscript -e 'renv::restore()'`
 3. Install Python dependencies with `poetry install`
 
-For quick-start introductions on how to use the data in practice from code, look at [`src/example_user/example_analysis.Rmd`](src/example_user/example_analysis.md) and[`src/example_user/example_analysis.ipynb`](src/example_user/example_analysis.ipynb). 
+For quick-start introductions on how to use the data in practice from code, look at [`src/example_user/example_analysis.Rmd`](src/example_user/example_analysis.Rmd) and[`src/example_user/parquet_example.ipynb`](src/example_user/example_analysis.ipynb). 
 
