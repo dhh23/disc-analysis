@@ -7,3 +7,4 @@ db_secret.yaml
 __pycache__/
 *.py[cod]
 *$py.class
+data/input/parquet/*.parquet
