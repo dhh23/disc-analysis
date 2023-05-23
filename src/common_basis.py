@@ -1,7 +1,10 @@
+from dataclasses import dataclass
+
 import keyring
 import getpass
 import sqlalchemy
 import yaml
+import pandas as pd
 from hereutil import here
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -28,7 +31,7 @@ def get_connection() -> (Engine, Connection):
             eng = sqlalchemy.create_engine(
                 "mariadb+pymysql://" + db_params['db_user'] + ":" + password + "@" + db_params['db_host'] + "/" +
                 db_params['db_name'] + "?charset=utf8mb4&autocommit&local_infile",
-                future=True
+                isolation_level="AUTOCOMMIT"
             )
             con = eng.connect()
         except SQLAlchemyError as err:
@@ -50,4 +53,74 @@ def set_session_storage_engine(con: Connection, engine: str):
     con.execute(text("SET SESSION storage_engine="+engine))
 
 
-__all__ = ["get_connection", "set_session_storage_engine"]
+@dataclass
+class AbortionData:
+    abortion_conversations: pd.DataFrame
+    abortion_tweets: pd.DataFrame
+    abortion_tweet_hashtags: pd.DataFrame
+    abortion_tweet_urls: pd.DataFrame
+    abortion_tweet_mentions: pd.DataFrame
+    abortion_matching_tweet_ids: pd.DataFrame
+
+    def __repr__(self):
+        return "AbortionData(abortion_conversations, abortion_tweets, abortion_tweet_hashtags, abortion_tweet_urls, " \
+               "abortion_tweet_mentions, abortion_matching_tweet_ids)"
+
+
+def load_abortion_parquet() -> AbortionData:
+    return AbortionData(
+        pd.read_parquet(here("data/input/parquet/abortion_conversations.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/abortion_tweets.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/abortion_tweet_hashtags.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/abortion_tweet_urls.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/abortion_tweet_mentions.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/abortion_matching_tweet_ids.parquet"), dtype_backend='pyarrow')
+    )
+
+
+@dataclass
+class LynchingData:
+    lynching_conversations: pd.DataFrame
+    lynching_tweets: pd.DataFrame
+    lynching_tweet_hashtags: pd.DataFrame
+    lynching_tweet_urls: pd.DataFrame
+    lynching_tweet_mentions: pd.DataFrame
+    lynching_matching_tweet_ids: pd.DataFrame
+
+    def __repr__(self):
+        return "LynchingData(lynching_conversations, lynching_tweets, lynching_tweet_hashtags, lynching_tweet_urls, " \
+               "lynching_tweet_mentions, lynching_matching_tweet_ids)"
+
+
+def load_lynching_parquet() -> LynchingData:
+    return LynchingData(
+        pd.read_parquet(here("data/input/parquet/lynching_conversations.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/lynching_tweets.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/lynching_tweet_hashtags.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/lynching_tweet_urls.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/lynching_tweet_mentions.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/lynching_matching_tweet_ids.parquet"), dtype_backend='pyarrow')
+    )
+
+
+@dataclass
+class IncelData:
+    incel_threads: pd.DataFrame
+    incel_posts: pd.DataFrame
+    incel_users: pd.DataFrame
+    incel_quotes: pd.DataFrame
+
+    def __repr__(self):
+        return "IncelData(incel_threads, incel_posts, incel_users, incel_quotes)"
+
+
+def load_incel_parquet() -> IncelData:
+    return IncelData(
+        pd.read_parquet(here("data/input/parquet/incel_threads.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/incel_posts.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/incel_users.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/incel_quotes.parquet"), dtype_backend='pyarrow'),
+    )
+
+
+__all__ = ["get_connection", "set_session_storage_engine", "load_abortion_parquet", "load_lynching_parquet", "load_incel_parquet"]
