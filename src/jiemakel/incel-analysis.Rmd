@@ -20,42 +20,46 @@ source(here::here("src/common_basis.R"))
 
 ```{r}
 incel_posts_c %>%
-  count(year=year(time_posted),month=month(time_posted)) %>%
+  group_by(year=year(time_posted),month=month(time_posted)) %>%
+  summarise(posts=n(),users=n_distinct(poster_id), .groups="drop") %>%
   mutate(month=as.Date(str_c(year,'-',month,'-01'))) %>%
-  ggplot(aes(x=month,y=n)) +
+  filter(month<"2023-03-01") %>%
+  pivot_longer(posts:users) %>%
+  ggplot(aes(x=month,y=value)) +
   geom_line() +
   scale_y_continuous(labels=scales::number) + 
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
   xlab("Month") +
-  ylab("Posts") +
-  theme_hsci_discrete()
+  ylab("N") +
+  theme_hsci_discrete() +
+  facet_wrap(~name,scales="free_y",ncol=1)
 ```
-
 
 # Post count distribution (overall/lounge)
 
 ```{r}
 quantiles <- seq(0,1,by=0.05)
 incel_users_c %>%
-  select(user_total_posts) %>%
+  select(poster_total_posts) %>%
   collect() %>%
   reframe(
     quantile=quantiles,
-    user_total_posts=quantile(user_total_posts,quantiles)
+    poster_total_posts=quantile(poster_total_posts,quantiles)
   ) %>%
   inner_join(
     incel_posts_c %>%
-      count(user_id) %>%
+      count(poster_id) %>%
       select(n) %>%
       collect() %>%
       reframe(
         quantile=quantiles,
-        user_lounge_posts=quantile(n,quantiles)
+        poster_lounge_posts=quantile(n,quantiles)
     ),
     join_by(quantile)
   ) %>%
   gt(rowname_col = "quantile") %>%
   fmt_percent(quantile, drop_trailing_zeros = TRUE) %>%
-  fmt_number(columns = c(user_total_posts,user_lounge_posts), drop_trailing_zeros = TRUE)
+  fmt_number(columns = c(poster_total_posts,poster_lounge_posts), drop_trailing_zeros = TRUE)
 ```
 
  * As expected, the distribution is very skewed. Half the users have less than 100 posts, while the top 25% have more than 500. 
@@ -64,8 +68,8 @@ incel_users_c %>%
 
 ```{r}
 incel_users_c %>%
-  filter(user_joined>"1970-01-01") %>%
-  ggplot(aes(x=user_joined,y=user_total_posts)) +
+  filter(poster_joined>"1970-01-01") %>%
+  ggplot(aes(x=poster_joined,y=poster_total_posts)) +
   geom_point(size=0.5) +
   geom_smooth(method="lm", formula="y~x") +
   theme_hsci_discrete() +
@@ -77,10 +81,10 @@ incel_users_c %>%
 
 ```{r}
 incel_posts_c %>%
-  count(user_id) %>%
-  inner_join(incel_users_c, join_by(user_id)) %>%
-  filter(user_joined>"1970-01-01") %>%
-  ggplot(aes(x=user_joined,y=n)) +
+  count(poster_id) %>%
+  inner_join(incel_users_c, join_by(poster_id)) %>%
+  filter(poster_joined>"1970-01-01") %>%
+  ggplot(aes(x=poster_joined,y=n)) +
   geom_point(size=0.5) +
   geom_smooth(method="lm", formula="y~x") +
   theme_hsci_discrete() +
@@ -136,19 +140,19 @@ incel_posts_c %>%
 
 
 ```{r}
-user_type <- incel_posts_c %>%
-  count(user_id) %>%
-  mutate(user_type=if_else(n>=100,"top","other")) %>%
-  select(user_id, user_type)
+poster_type <- incel_posts_c %>%
+  count(poster_id) %>%
+  mutate(poster_type=if_else(n>=100,"top","other")) %>%
+  select(poster_id, poster_type)
 
 incel_posts_c %>% 
   mutate(hour=hour(time_posted)) %>%
-  inner_join(user_type, join_by(user_id)) %>%
-  count(user_type,hour) %>%
-  group_by(user_type) %>%
+  inner_join(poster_type, join_by(poster_id)) %>%
+  count(poster_type,hour) %>%
+  group_by(poster_type) %>%
   mutate(proportion=n/sum(n)) %>%
   ungroup() %>%
-  ggplot(aes(x=hour,y=proportion,color=user_type)) +
+  ggplot(aes(x=hour,y=proportion,color=poster_type)) +
   geom_line() +
   theme_hsci_discrete() +
   theme(
@@ -174,8 +178,8 @@ incel_posts_c %>%
 ```{r}
 incel_posts_c %>% 
   mutate(hour=hour(time_posted)) %>%
-  count(user_id,hour) %>%
-  group_by(user_id) %>%
+  count(poster_id,hour) %>%
+  group_by(poster_id) %>%
   filter(sum(n)>=100) %>% # limit to users with enough data to get any pattern
   mutate(proportion=n/sum(n)) %>%
   ungroup() %>%
@@ -196,7 +200,7 @@ incel_posts_c %>%
 
 ```{r}
 incel_posts_c %>%
-    group_by(user_id) %>%
+    group_by(poster_id) %>%
     summarise(earliest_post=min(time_posted),latest_post=max(time_posted), .groups="drop") %>%
     mutate(earliest_post_year=year(earliest_post), active_period_days=sql("timestampdiff(day,earliest_post,latest_post)")) %>%
   ggplot(aes(x=earliest_post_year,y=active_period_days)) + 
@@ -208,5 +212,66 @@ incel_posts_c %>%
 ```
 
  * In 2019, there seem to have been more people joining who stayed on longer.
+
+# Different -cels
+ 
+```{r}
+cel_post_contents <- incel_posts_c %>% 
+  filter(str_detect(post_content,"cels?\\b")) %>% 
+  select(post_id, post_content) %>% 
+  collect() 
+
+cels_by_post <- cel_post_contents %>%
+  mutate(cel=str_extract_all(post_content, "(?<! expand...)[^ \\n]+ cels?\\b|[^ \\n]*cels?\\b(?! said)")) %>%
+  unnest(cel) %>% 
+  filter(!str_detect(cel, "^@")) %>%
+  select(post_id, cel) %>% 
+  mutate(cel=cel %>% 
+           str_to_lower() %>% 
+           str_replace_all("\\W","") %>% 
+           str_replace_all("s$",""))
+```
+ 
+ 
+```{r}
+cels <- cels_by_post %>%
+  count(cel) %>% 
+  arrange(desc(n))
+```
+ 
+```{r}
+cels %>% 
+  write_tsv(here("data/output/jiemakel/cels.tsv"),na="",quote="needed")
+```
+
+```{r}
+cels %>%
+  head(n=100) %>%
+  gt(rowname_col="cel") %>%
+  fmt_integer(n)
+```
+ 
+```{r}
+cels2 <- cels_by_post %>%
+  distinct() %>%
+  group_by(post_id) %>%
+  filter(n()>1) %>%
+  arrange(cel) %>%
+  summarise(cel=str_flatten(cel, collapse=", "), .groups="drop") %>%
+  count(cel) %>% 
+  arrange(desc(n))
+```
+ 
+```{r}
+cels2 %>% 
+  write_tsv(here("data/output/jiemakel/cels2.tsv"),na="",quote="needed")
+```
+ 
+```{r}
+cels2 %>%
+  head(n=100) %>%
+gt(rowname_col="cel") %>%
+  fmt_integer(n)
+```
  
  
