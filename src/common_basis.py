@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Literal
 
 import keyring
 import getpass
@@ -67,14 +68,14 @@ class AbortionData:
                "abortion_tweet_mentions, abortion_matching_tweet_ids)"
 
 
-def load_abortion_parquet() -> AbortionData:
+def load_abortion_parquet(dtype_backend: Literal['pyarrow', 'numpy_nullable'] = 'pyarrow') -> AbortionData:
     return AbortionData(
-        pd.read_parquet(here("data/input/parquet/abortion_conversations.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/abortion_tweets.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/abortion_tweet_hashtags.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/abortion_tweet_urls.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/abortion_tweet_mentions.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/abortion_matching_tweet_ids.parquet"), dtype_backend='pyarrow')
+        pd.read_parquet(here("data/input/parquet/abortion_conversations.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/abortion_tweets.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/abortion_tweet_hashtags.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/abortion_tweet_urls.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/abortion_tweet_mentions.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/abortion_matching_tweet_ids.parquet"), dtype_backend=dtype_backend)
     )
 
 
@@ -92,14 +93,14 @@ class LynchingData:
                "lynching_tweet_mentions, lynching_matching_tweet_ids)"
 
 
-def load_lynching_parquet() -> LynchingData:
+def load_lynching_parquet(dtype_backend: Literal['pyarrow', 'numpy_nullable'] = 'pyarrow') -> LynchingData:
     return LynchingData(
-        pd.read_parquet(here("data/input/parquet/lynching_conversations.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/lynching_tweets.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/lynching_tweet_hashtags.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/lynching_tweet_urls.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/lynching_tweet_mentions.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/lynching_matching_tweet_ids.parquet"), dtype_backend='pyarrow')
+        pd.read_parquet(here("data/input/parquet/lynching_conversations.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/lynching_tweets.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/lynching_tweet_hashtags.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/lynching_tweet_urls.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/lynching_tweet_mentions.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/lynching_matching_tweet_ids.parquet"), dtype_backend=dtype_backend)
     )
 
 
@@ -114,12 +115,12 @@ class IncelData:
         return "IncelData(incel_threads, incel_posts, incel_users, incel_quotes)"
 
 
-def load_incel_parquet() -> IncelData:
+def load_incel_parquet(dtype_backend: Literal['pyarrow', 'numpy_nullable'] = 'pyarrow') -> IncelData:
     return IncelData(
-        pd.read_parquet(here("data/input/parquet/incel_threads.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/incel_posts.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/incel_users.parquet"), dtype_backend='pyarrow'),
-        pd.read_parquet(here("data/input/parquet/incel_quotes.parquet"), dtype_backend='pyarrow'),
+        pd.read_parquet(here("data/input/parquet/incel_threads.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/incel_posts.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/incel_users.parquet"), dtype_backend=dtype_backend),
+        pd.read_parquet(here("data/input/parquet/incel_quotes.parquet"), dtype_backend=dtype_backend),
     )
 
 
