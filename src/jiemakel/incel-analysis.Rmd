@@ -2,12 +2,12 @@
 title: "Incel analysis"
 date: "`r Sys.Date()`"
 output: 
-  md_document:
-    variant: gfm 
-    toc: yes
   html_notebook:
     toc: yes
     code_folding: hide
+  md_document:
+    variant: gfm 
+    toc: yes
 ---
 
 ```{r setup}
@@ -19,12 +19,23 @@ source(here::here("src/common_basis.R"))
 # Post count distribution through time
 
 ```{r}
+active_posters <- incel_posts_c %>%
+  count(year=year(time_posted),month=month(time_posted), poster_id) %>%
+  filter(n>3) %>%
+  count(year, month, name="value") %>%
+  mutate(name="active posters") %>%
+  collect()
+```
+
+```{r}
 incel_posts_c %>%
   group_by(year=year(time_posted),month=month(time_posted)) %>%
   summarise(posts=n(),users=n_distinct(poster_id), .groups="drop") %>%
+  pivot_longer(posts:users) %>%
+  collect() %>%
+  union_all(active_posters) %>%
   mutate(month=as.Date(str_c(year,'-',month,'-01'))) %>%
   filter(month<"2023-03-01") %>%
-  pivot_longer(posts:users) %>%
   ggplot(aes(x=month,y=value)) +
   geom_line() +
   scale_y_continuous(labels=scales::number) + 
@@ -253,6 +264,7 @@ cels %>%
  
 ```{r}
 cels2 <- cels_by_post %>%
+  filter(cel!="incel") %>%
   distinct() %>%
   group_by(post_id) %>%
   filter(n()>1) %>%
@@ -274,4 +286,25 @@ gt(rowname_col="cel") %>%
   fmt_integer(n)
 ```
  
+```{r}
+trucel_posts <- cels_by_post %>% 
+  filter(str_detect(cel,"tru")) %>%
+  distinct(post_id)
+
+fakecel_posts <- cels_by_post %>% 
+  filter(str_detect(cel,"fake")) %>%
+  distinct(post_id)
+```
  
+```{r}
+cels_by_post %>% inner_join(trucel_posts, join_by(post_id)) %>%
+  filter(!cel %in% c("trucel","truecel", "incel", "httpsincel")) %>%
+  count(cel) %>%
+  arrange(desc(n))
+
+cels_by_post %>% inner_join(fakecel_posts, join_by(post_id)) %>%
+  filter(!cel %in% c("fakecel","incel", "httpsincel")) %>%
+  count(cel) %>%
+  arrange(desc(n))
+```
+
