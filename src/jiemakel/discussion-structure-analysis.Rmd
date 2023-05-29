@@ -1,0 +1,126 @@
+---
+title: "Discussion structure analysis"
+date: "`r Sys.Date()`"
+output: 
+  md_document:
+    variant: gfm 
+    toc: yes
+  html_notebook:
+    toc: yes
+    code_folding: hide
+---
+
+```{r setup}
+library(ggbeeswarm)
+library(gt)
+library(tictoc)
+source(here::here("src/common_basis.R"))
+```
+
+```{r}
+centiles <- seq(0,1,by=0.1)
+percentiles <- seq(0,1,by=0.01)
+```
+
+# Fetal personhood
+
+```{r}
+abortion_tweets_c %>% 
+  count(reply_count) %>%
+  ggplot(aes(x=reply_count,y=n)) +
+  geom_point(size=0.5) +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme_hsci_discrete()
+```
+
+```{r}
+abortion_tweets_c %>% 
+  count(retweet_count) %>%
+  ggplot(aes(x=retweet_count,y=n)) +
+  geom_point(size=0.5) +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme_hsci_discrete()
+```
+
+
+# Incels
+
+```{r}
+incel_threads_c %>% 
+  count(thread_label, posts) %>%
+  group_by(thread_label) %>%
+  mutate(prop=n/sum(n)) %>%
+  ungroup() %>%
+  ggplot(aes(x=posts,y=prop, color=thread_label)) +
+  geom_line() +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme_hsci_discrete()
+```
+
+```{r}
+incel_quotes_c %>% 
+  count(quoted_post_id) %>%
+  filter(quoted_post_id != 0) %>%
+  count(n) %>%
+  arrange(desc(nn)) %>%
+  ggplot(aes(x=n,y=nn)) + 
+  geom_point() +
+  theme_hsci_discrete() +
+  scale_y_log10()
+```
+
+```{r}
+incel_quote_tree_a <- incel_quotes_a %>%
+  inner_join(incel_posts_a %>% select(quoting_post_id=post_id,quoting_post_poster_id=poster_id)) %>%
+    inner_join(incel_posts_a %>% select(quoted_post_id=post_id,quoted_post_poster_id=poster_id)) %>%
+  distinct(quoting_post_id,quoted_post_id,quoting_post_poster_id,quoted_post_poster_id) %>%
+  filter(quoted_post_id!=0,quoted_post_id!=quoting_post_id) %>%
+  compute_a(name="incel_quote_tree_a", unique_indexes=list(c("quoting_post_id","quoted_post_id"),c("quoted_post_id","quoting_post_id")), temporary=FALSE, overwrite=TRUE)
+```
+
+```{r}
+ancestors_q <- tbl(con,sql('
+WITH RECURSIVE ancestors AS ( 
+  SELECT quoting_post_id AS descendant_post_id, quoted_post_id AS ancestor_post_id, 1 AS length
+  FROM incel_quote_tree_a
+  UNION 
+  SELECT a.descendant_post_id, qt.quoted_post_id AS ancestor_post_id, length+1 AS length
+  FROM incel_quote_tree_a qt, ancestors a
+  WHERE qt.quoting_post_id = a.ancestor_post_id
+) 
+SELECT * FROM ancestors'))
+descendants_q <- tbl(con,sql('
+WITH RECURSIVE descendants AS ( 
+  SELECT quoting_post_id AS descendant_post_id, quoted_post_id AS ancestor_post_id, 1 AS length
+  FROM incel_quote_tree_a
+  UNION 
+  SELECT qt.quoting_post_id AS descendant_post_id, ancestor_post_id, length+1 AS length
+  FROM incel_quote_tree_a qt, descendants d
+  WHERE qt.quoted_post_id = d.descendant_post_id
+) 
+SELECT * FROM descendants'))
+```
+
+
+```{r}
+tic()
+reply_depth_a <- descendants_q %>% 
+  group_by(post_id=descendant_post_id) %>%
+  summarise(length=max(length)) %>%
+  compute_a(name="reply_depth_a",unique_indexes=list(c("post_id")),temporary=FALSE,overwrite=TRUE)
+toc()
+```
+
+```{r}
+reply_depth_a %>% 
+  count(length) %>% 
+  ggplot(aes(x=length,y=n)) + 
+  geom_point(size=0.5) +
+  scale_y_log10() +
+  theme_hsci_discrete()
+```
+
+

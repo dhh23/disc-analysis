@@ -1,5 +1,5 @@
 ---
-title: "Lynching analysis"
+title: "Tweet dataset analyses"
 date: "`r Sys.Date()`"
 output: 
   md_document:
