@@ -1,0 +1,52 @@
+---
+title: "Incel analysis test"
+date: "`r Sys.Date()`"
+output: 
+  md_document:
+    variant: gfm 
+    toc: yes
+  html_notebook:
+    toc: yes
+    code_folding: hide
+---
+
+```{r setup}
+library(ggbeeswarm)
+library(dplyr)
+library(gt)
+source(here::here("src/common_basis.R"))
+```
+```{r}
+incel_posts_c %>%
+  count(year=year(time_posted),month=month(time_posted)) %>%
+  mutate(month=as.Date(str_c(year,'-',month,'-01'))) %>%
+  ggplot(aes(x=month,y=n)) +
+  geom_line() +
+  scale_y_continuous(labels=scales::number) + 
+  xlab("Month") +
+  ylab("Posts") +
+  theme_hsci_discrete()
+```
+```{r}
+incel_top_quoted = incel_quotes_c %>%
+  group_by(quoted_post_id) %>%tally(sort =TRUE) %>% filter(n > 9) %>% collect()
+incel_top_quoted
+```
+
+
+```{r}
+incel_posts_local <- incel_posts_c %>% collect()
+by <- join_by(quoted_post_id == post_id)
+top_quoted_posts <- left_join(incel_top_quoted, incel_posts_local, by) 
+top_quoted_posts
+
+```
+```{r}
+top_quoted_posts <- rename(top_quoted_posts, number_of_replies = n)
+top_quoted_posts
+
+```
+```{r}
+write_tsv(top_quoted_posts, "top_quoted_posts.tsv", quote="needed", na="")
+
+```
