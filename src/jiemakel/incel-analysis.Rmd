@@ -51,11 +51,11 @@ incel_posts_c %>%
 ```{r}
 quantiles <- seq(0,1,by=0.05)
 incel_users_c %>%
-  select(poster_total_posts) %>%
+  select(user_total_posts) %>%
   collect() %>%
   reframe(
     quantile=quantiles,
-    poster_total_posts=quantile(poster_total_posts,quantiles)
+    user_total_posts=quantile(user_total_posts,quantiles)
   ) %>%
   inner_join(
     incel_posts_c %>%
@@ -64,13 +64,13 @@ incel_users_c %>%
       collect() %>%
       reframe(
         quantile=quantiles,
-        poster_lounge_posts=quantile(n,quantiles)
+        user_lounge_posts=quantile(n,quantiles)
     ),
     join_by(quantile)
   ) %>%
   gt(rowname_col = "quantile") %>%
   fmt_percent(quantile, drop_trailing_zeros = TRUE) %>%
-  fmt_number(columns = c(poster_total_posts,poster_lounge_posts), drop_trailing_zeros = TRUE)
+  fmt_number(columns = c(user_total_posts,user_lounge_posts), drop_trailing_zeros = TRUE)
 ```
 
  * As expected, the distribution is very skewed. Half the users have less than 100 posts, while the top 25% have more than 500. 
@@ -79,8 +79,8 @@ incel_users_c %>%
 
 ```{r}
 incel_users_c %>%
-  filter(poster_joined>"1970-01-01") %>%
-  ggplot(aes(x=poster_joined,y=poster_total_posts)) +
+  filter(user_joined>"1970-01-01") %>%
+  ggplot(aes(x=user_joined,y=user_total_posts)) +
   geom_point(size=0.5) +
   geom_smooth(method="lm", formula="y~x") +
   theme_hsci_discrete() +
@@ -93,9 +93,9 @@ incel_users_c %>%
 ```{r}
 incel_posts_c %>%
   count(poster_id) %>%
-  inner_join(incel_users_c, join_by(poster_id)) %>%
-  filter(poster_joined>"1970-01-01") %>%
-  ggplot(aes(x=poster_joined,y=n)) +
+  inner_join(incel_users_c, join_by(poster_id==user_id)) %>%
+  filter(user_joined>"1970-01-01") %>%
+  ggplot(aes(x=user_joined,y=n)) +
   geom_point(size=0.5) +
   geom_smooth(method="lm", formula="y~x") +
   theme_hsci_discrete() +
@@ -151,19 +151,19 @@ incel_posts_c %>%
 
 
 ```{r}
-poster_type <- incel_posts_c %>%
+user_type <- incel_posts_c %>%
   count(poster_id) %>%
-  mutate(poster_type=if_else(n>=100,"top","other")) %>%
-  select(poster_id, poster_type)
+  mutate(user_type=if_else(n>=100,"top","other")) %>%
+  select(poster_id, user_type)
 
 incel_posts_c %>% 
   mutate(hour=hour(time_posted)) %>%
-  inner_join(poster_type, join_by(poster_id)) %>%
-  count(poster_type,hour) %>%
-  group_by(poster_type) %>%
+  inner_join(user_type, join_by(poster_id)) %>%
+  count(user_type,hour) %>%
+  group_by(user_type) %>%
   mutate(proportion=n/sum(n)) %>%
   ungroup() %>%
-  ggplot(aes(x=hour,y=proportion,color=poster_type)) +
+  ggplot(aes(x=hour,y=proportion,color=user_type)) +
   geom_line() +
   theme_hsci_discrete() +
   theme(
@@ -306,5 +306,82 @@ cels_by_post %>% inner_join(fakecel_posts, join_by(post_id)) %>%
   filter(!cel %in% c("fakecel","incel", "httpsincel")) %>%
   count(cel) %>%
   arrange(desc(n))
+```
+
+# You/we/they are
+```{r}
+are_post_contents <- incel_posts_c %>% 
+  filter(str_detect(post_content,"(you|they|we)('re| are) ")) %>% 
+  select(post_id, post_content) %>% 
+  collect() %>%
+  mutate(post_content = post_content %>% str_replace_all("Click to expand...",".") %>% str_replace_all("\\s+"," "))
+```
+
+
+```{r}
+ares_by_post <- c(1:4) %>% 
+  map_dfr(~are_post_contents %>%
+    mutate(length= .x, are=str_extract_all(post_content, str_c("(you|they|we)('re| are)('nt| not)?( a| an| the)?", strrep(" \\w+",.x))))
+  ) %>%  
+  unnest(are) %>%
+  select(post_id, are, length) %>%
+  mutate(are=are %>% str_replace("'re"," are") %>% str_replace("'nt", " not")) %>%
+  mutate(
+    who=str_replace(are," .*",""), 
+    are=str_replace(are, ".*? ",""),
+    stem=str_replace(are, " [^ ]*$", "")
+  ) %>%
+  relocate(post_id, length, who, are)
+ares_by_post
+```
+
+
+```{r}
+ares_by_post_count <- ares_by_post %>%
+  count(length, who, are, stem)
+ares_by_post_count
+```
+
+```{r}
+top_ares <- ares_by_post_count %>% 
+  group_by(length, who) %>%
+  slice_max(n,n=20) %>%
+  ungroup()
+```
+
+
+```{r}
+ares_by_post_count %>% 
+  anti_join(top_ares, join_by(who, are==stem)) %>%
+  anti_join(ares_by_post_count %>% mutate(length=length+1), join_by(who,are,length)) %>%
+  select(-stem) %>%
+  group_by(length, who) %>%
+  slice_max(n,n=20) %>%
+  mutate(order=row_number()) %>%
+  ungroup() %>%
+  filter(order<=20) %>%
+  pivot_wider(id_cols=c("length","order"), names_from="who", values_from=c("are","n")) %>%
+  relocate(are_they,n_they,are_we,n_we,are_you,n_you) %>%
+  arrange(desc(length)) %>%
+  gt(groupname_col = "length", rowname_col="order") %>%
+  cols_label(
+    are_they="They",
+    n_they="N",
+    are_we="We",
+    n_we="N",
+    are_you="You",
+    n_you="N") %>%
+  tab_style(
+    style = list(
+      cell_borders(
+        sides = c("right"),
+        style = "solid"
+      )
+    ),
+    locations = cells_body(
+      columns = c(n_we,n_you,n_they)
+    )
+  )
+  
 ```
 
