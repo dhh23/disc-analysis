@@ -17,29 +17,39 @@ source(here::here("src/common_basis.R"))
 ```
 
 ```{r}
-lynching_tweets_a %>%
-  count(year_created_at,month_created_at) %>%
+lynching_tweets_c %>%
+  left_join(lynching_matching_tweet_ids_c %>% mutate(match=TRUE), join_by(tweet_id)) %>%
+  replace_na(list(match=FALSE)) %>%
+  group_by(year_created_at,month_created_at) %>%
+  summarise(tweets=n(), matching=sum(match), users=n_distinct(author_id), retweets=sum(!is.na(retweet_of)), .groups="drop") %>%
   mutate(month=as.Date(str_c(year_created_at,'-',month_created_at,'-01'))) %>%
-  ggplot(aes(x=month,y=n)) +
+  collect() %>%
+  pivot_longer(c(tweets,matching,retweets,users)) %>%
+  ggplot(aes(x=month,y=value,color=name)) +
   geom_line() +
   scale_y_continuous(labels=scales::number) + 
   xlab("Month") +
-  ylab("Tweets") +
+  ylab("N") +
   theme_hsci_discrete() +
-  ggtitle("Number of tweets through time in the lynching corpus")
+  ggtitle("Number of tweets and users through time in the lynching corpus")
 ```
 
 ```{r}
-abortion_tweets_a %>%
-  count(year_created_at,month_created_at) %>%
+abortion_tweets_c %>%
+  left_join(abortion_matching_tweet_ids_c %>% mutate(match=TRUE), join_by(tweet_id)) %>%
+  replace_na(list(match=FALSE)) %>%
+  group_by(year_created_at,month_created_at) %>%
+  summarise(tweets=n(), matching=sum(match), users=n_distinct(author_id), retweets=sum(!is.na(retweet_of)), .groups="drop") %>%
   mutate(month=as.Date(str_c(year_created_at,'-',month_created_at,'-01'))) %>%
-  ggplot(aes(x=month,y=n)) +
+  collect() %>%
+  pivot_longer(c(tweets,matching,retweets,users)) %>%
+  ggplot(aes(x=month,y=value,color=name)) +
   geom_line() +
   scale_y_continuous(labels=scales::number) + 
   xlab("Month") +
-  ylab("Tweets") +
+  ylab("N") +
   theme_hsci_discrete() +
-  ggtitle("Number of tweets through time in the abortion corpus")
+  ggtitle("Number of tweets and users through time in the fetal personhood corpus")
 ```
 
 # Monologues, dialogues and trialogues in the lynching corpus
