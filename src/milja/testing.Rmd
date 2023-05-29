@@ -28,7 +28,14 @@ incel_posts_c %>%
   theme_hsci_discrete()
 ```
 ```{r}
-incel_top_quoted = incel_quotes_c %>%
+
+incel_quotes_c %>% filter(quoted_post_id==0)
+
+```
+
+
+```{r}
+incel_top_quoted = incel_quotes_c %>% filter(quoted_post_id!=0) %>%
   group_by(quoted_post_id) %>%tally(sort =TRUE) %>% filter(n > 9) %>% collect()
 incel_top_quoted
 ```
@@ -36,6 +43,10 @@ incel_top_quoted
 
 ```{r}
 incel_posts_local <- incel_posts_c %>% collect()
+```
+
+```{r}
+
 by <- join_by(quoted_post_id == post_id)
 top_quoted_posts <- left_join(incel_top_quoted, incel_posts_local, by) 
 top_quoted_posts
@@ -49,4 +60,19 @@ top_quoted_posts
 ```{r}
 write_tsv(top_quoted_posts, "top_quoted_posts.tsv", quote="needed", na="")
 
+```
+```{r}
+
+library(purrr)
+library(rvest)
+
+top_quoted_posts['cleaned_text'] <- map_chr(top_quoted_posts$post_html, function(x) {
+  x <- read_html(x)
+  div <- html_nodes(x, "div.bbWrapper")
+  strings <- html_text(div, trim = TRUE)
+  paste(strings, collapse = " ")
+})
+
+
+top_quoted_posts
 ```
