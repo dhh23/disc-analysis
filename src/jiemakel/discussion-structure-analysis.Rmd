@@ -217,3 +217,46 @@ paired_depth_a %>%
   fmt_url(url)
 ```
 
+# Agree/disagree
+
+```{r}
+agree_post_contents <- incel_posts_c %>% 
+  filter(str_detect(post_content,"agree|(you|we|they)( a|')re('nt| not)? (right|wrong|correct)")) %>% 
+  select(post_id, post_content) %>% 
+  collect() %>%
+  mutate(post_content = post_content %>% str_replace_all("Click to expand...",".") %>% str_replace_all("\\s+"," "))
+```
+
+
+```{r}
+agrees_by_post <- 0:1 %>% map_dfr(~agree_post_contents %>%
+    mutate(length=.x, agree=str_extract_all(post_content, str_c(strrep("[\\w']+ ",.x), "\\w*agree\\w*")))
+) %>%
+  unnest(agree) %>%
+  mutate(agree=str_to_lower(agree))
+```
+
+
+```{r}
+agrees_by_post %>% 
+  count(length,agree) %>% 
+  group_by(length) %>% 
+  slice_max(n,n=20)
+```
+
+```{r}
+rights_by_post <- 0:1 %>% map_dfr(~agree_post_contents %>%
+    mutate(length=.x, agree=str_extract_all(post_content, str_c("re ", strrep("[\\w']+ ",.x), "(correct|right|wrong)")))
+) %>%
+  unnest(agree) %>%
+  mutate(agree=str_to_lower(agree))
+```
+
+
+```{r}
+rights_by_post %>% 
+  count(length,agree) %>% 
+  group_by(length) %>% 
+  slice_max(n,n=20)
+```
+
