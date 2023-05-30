@@ -180,7 +180,7 @@ paired_depth_a <- paired_tree_q %>%
   group_by(child_post_id) %>%
   filter(length==max(length)) %>%
   ungroup() %>%
-  compute_a(name="reply_depth_a",unique_indexes=list(c("child_post_id","ancestor_post_id"),c("ancestor_post_id","child_post_id")),temporary=FALSE,overwrite=TRUE)
+  compute_a(name="paired_depth_a",unique_indexes=list(c("child_post_id","ancestor_post_id"),c("ancestor_post_id","child_post_id")),temporary=FALSE,overwrite=TRUE)
 toc()
 ```
 
@@ -204,7 +204,7 @@ paired_depth_a %>%
   group_by(ancestor_post_id) %>%
   filter(length==max(length)) %>%
   ungroup() %>%
-  mutate(bucket=floor(length/10)*10) %>%
+  mutate(bucket=floor(length/5)*5) %>%
   group_by(bucket) %>%
   slice_sample(n=5) %>%
   ungroup() %>%
