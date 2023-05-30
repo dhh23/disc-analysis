@@ -1,0 +1,262 @@
+---
+title: "Discussion structure analysis"
+date: "`r Sys.Date()`"
+output: 
+  html_notebook:
+    toc: yes
+    code_folding: hide
+---
+
+```{r setup}
+library(ggbeeswarm)
+library(gt)
+library(tictoc)
+source(here::here("src/common_basis.R"))
+```
+
+```{r}
+centiles <- seq(0,1,by=0.1)
+percentiles <- seq(0,1,by=0.01)
+```
+
+# Fetal personhood
+
+```{r}
+abortion_tweets_c %>% 
+  count(reply_count) %>%
+  ggplot(aes(x=reply_count,y=n)) +
+  geom_point(size=0.5) +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme_hsci_discrete() +
+  ggtitle("Reply count distribution")
+```
+
+```{r}
+abortion_tweets_c %>% 
+  count(retweet_count) %>%
+  ggplot(aes(x=retweet_count,y=n)) +
+  geom_point(size=0.5) +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme_hsci_discrete() +
+  ggtitle("Retweet count distribution")
+```
+
+```{r}
+abortion_tweets_c %>% 
+  count(like_count) %>%
+  ggplot(aes(x=like_count,y=n)) +
+  geom_point(size=0.5) +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme_hsci_discrete() +
+  ggtitle("Like count distribution")
+```
+
+# Incels
+
+```{r}
+incel_threads_c %>% 
+  count(thread_label, posts) %>%
+  group_by(thread_label) %>%
+  mutate(prop=n/sum(n)) %>%
+  ungroup() %>%
+  ggplot(aes(x=posts,y=prop, color=thread_label)) +
+  geom_line() +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme_hsci_discrete() +
+  ggtitle("Thread length distribution by label")
+```
+
+```{r}
+incel_quotes_c %>% 
+  filter(quoted_post_id != 0, quoted_post_id!=quoting_post_id) %>%
+  count(quoted_post_id) %>%
+  count(n) %>%
+  arrange(desc(nn)) %>%
+  ggplot(aes(x=n,y=nn)) + 
+  geom_point() +
+  theme_hsci_discrete() +
+  scale_y_log10() +
+  ggtitle("Distribution of the number of times a message has been quoted")
+```
+
+```{r, eval=FALSE}
+incel_quote_tree_a <- incel_quotes_a %>%
+  inner_join(incel_posts_a %>% select(quoting_post_id=post_id,quoting_post_poster_id=poster_id)) %>%
+    inner_join(incel_posts_a %>% select(quoted_post_id=post_id,quoted_post_poster_id=poster_id)) %>%
+  distinct(quoting_post_id,quoted_post_id,quoting_post_poster_id,quoted_post_poster_id) %>%
+  filter(quoted_post_id!=0,quoted_post_id!=quoting_post_id) %>%
+  compute_a(name="incel_quote_tree_a", unique_indexes=list(c("quoting_post_id","quoted_post_id"),c("quoted_post_id","quoting_post_id")), temporary=FALSE, overwrite=TRUE)
+```
+
+```{r}
+ancestors_q <- tbl(con,sql('
+WITH RECURSIVE ancestors AS ( 
+  SELECT quoting_post_id AS descendant_post_id, quoted_post_id AS ancestor_post_id, 1 AS length
+  FROM incel_quote_tree_a
+  UNION 
+  SELECT a.descendant_post_id, qt.quoted_post_id AS ancestor_post_id, length+1 AS length
+  FROM incel_quote_tree_a qt, ancestors a
+  WHERE qt.quoting_post_id = a.ancestor_post_id
+) 
+SELECT * FROM ancestors'))
+descendants_q <- tbl(con,sql('
+WITH RECURSIVE descendants AS ( 
+  SELECT quoting_post_id AS descendant_post_id, quoted_post_id AS ancestor_post_id, 1 AS length
+  FROM incel_quote_tree_a
+  UNION 
+  SELECT qt.quoting_post_id AS descendant_post_id, ancestor_post_id, length+1 AS length
+  FROM incel_quote_tree_a qt, descendants d
+  WHERE qt.quoted_post_id = d.descendant_post_id
+) 
+SELECT * FROM descendants'))
+```
+
+```{r, eval=FALSE}
+tic()
+reply_depth_a <- descendants_q %>% 
+  group_by(descendant_post_id) %>%
+  filter(length==max(length)) %>%
+  ungroup() %>%
+  compute_a(name="reply_depth_a",unique_indexes=list(c("descendant_post_id","ancestor_post_id"),c("ancestor_post_id","descendant_post_id")),temporary=FALSE,overwrite=TRUE)
+toc()
+```
+
+```{r}
+reply_depth_a %>% 
+  group_by(ancestor_post_id) %>%
+  filter(length==max(length)) %>%
+  ungroup() %>%
+  count(length) %>% 
+  ggplot(aes(x=length,y=n)) + 
+  geom_point(size=0.5) +
+  scale_y_log10() +
+  theme_hsci_discrete() +
+  ggtitle("Quote chain (~discussion) length distribution")
+```
+
+```{r, eval=FALSE}
+grandparent_q <- tbl(con,sql("
+WITH three_posts AS (
+  SELECT DISTINCT q1.quoting_post_id AS child_post_id, p1.poster_id AS child_user_id, q2.quoting_post_id AS parent_post_id, p2.poster_id AS parent_user_id, q2.quoted_post_id AS grandparent_post_id, p3.poster_id AS grandparent_user_id
+  FROM incel_quotes_a q1
+  INNER JOIN incel_quotes_a q2 ON (q1.quoted_post_id=q2.quoting_post_id)
+  INNER JOIN incel_posts_a p1 ON (q1.quoting_post_id=p1.post_id)
+  INNER JOIN incel_posts_a p2 ON (q1.quoted_post_id=p2.post_id)
+  INNER JOIN incel_posts_a p3 ON (q2.quoted_post_id=p3.post_id)
+  WHERE
+   q2.quoted_post_id!=0 AND
+   q2.quoting_post_id!=q2.quoted_post_id
+)
+SELECT * FROM three_posts"))
+incel_quote_triplets_a <- grandparent_q %>%
+  compute_a("incel_quote_triplets_a", temporary=FALSE, overwrite=TRUE)
+```
+
+```{r, eval=FALSE}
+ifqtriplets_a <- incel_quote_triplets_a %>%
+  filter(child_user_id==grandparent_user_id) %>%
+  compute_a("ifqtriplets_a", temporary=FALSE, overwrite=TRUE, unique_indexes=list(c("child_post_id","grandparent_post_id", "parent_post_id")))
+```
+
+
+```{r, eval=FALSE}
+paired_tree_q <- tbl(con,sql("
+WITH RECURSIVE ancestors AS ( 
+  SELECT child_post_id, child_user_id, parent_post_id AS ancestor_post_id, parent_user_id AS ancestor_user_id, 1 AS length
+  FROM ifqtriplets_a
+  UNION 
+  SELECT a.child_post_id, a.child_user_id, t.parent_post_id AS ancestor_post_id, t.parent_user_id AS ancestor_user_id, length + 1 AS length
+  FROM ancestors a, ifqtriplets_a t
+  WHERE a.ancestor_post_id = t.child_post_id
+)
+SELECT * FROM ancestors
+"))
+tic()
+paired_depth_a <- paired_tree_q %>% 
+  group_by(child_post_id) %>%
+  filter(length==max(length)) %>%
+  ungroup() %>%
+  compute_a(name="paired_depth_a",unique_indexes=list(c("child_post_id","ancestor_post_id"),c("ancestor_post_id","child_post_id")),temporary=FALSE,overwrite=TRUE)
+toc()
+```
+
+```{r}
+paired_depth_a %>% 
+  group_by(ancestor_post_id) %>%
+  filter(length==max(length)) %>%
+  ungroup() %>%
+  count(length) %>% 
+  ggplot(aes(x=length,y=n)) + 
+  geom_point(size=0.5) +
+  scale_y_log10() +
+  theme_hsci_discrete() +
+  ggtitle("Distribution of the length of discussion between two participants")
+```
+
+## Sample threads by their lengths
+
+```{r}
+paired_depth_a %>% 
+  group_by(ancestor_post_id) %>%
+  filter(length==max(length)) %>%
+  ungroup() %>%
+  mutate(bucket=floor(length/5)*5) %>%
+  group_by(bucket) %>%
+  slice_sample(n=5) %>%
+  ungroup() %>%
+  select(bucket, post_id=child_post_id, length) %>%
+  inner_join(incel_posts_a, join_by(post_id)) %>%
+  mutate(url=str_c("https://incels.is/goto/post?id=",str_sub(post_id_str,6))) %>%
+  select(bucket, length, url) %>%
+  arrange(bucket, length) %>%
+  gt(groupname_col = "bucket",rowname_col="length") %>%
+  fmt_url(url)
+```
+
+# Agree/disagree
+
+```{r}
+agree_post_contents <- incel_posts_c %>% 
+  filter(str_detect(post_content,"agree|(you|we|they)( a|')re('nt| not)? (right|wrong|correct)")) %>% 
+  select(post_id, post_content) %>% 
+  collect() %>%
+  mutate(post_content = post_content %>% str_replace_all("Click to expand...",".") %>% str_replace_all("\\s+"," "))
+```
+
+
+```{r}
+agrees_by_post <- 0:1 %>% map_dfr(~agree_post_contents %>%
+    mutate(length=.x, agree=str_extract_all(post_content, str_c(strrep("[\\w']+ ",.x), "\\w*agree\\w*")))
+) %>%
+  unnest(agree) %>%
+  mutate(agree=str_to_lower(agree))
+```
+
+
+```{r}
+agrees_by_post %>% 
+  count(length,agree) %>% 
+  group_by(length) %>% 
+  slice_max(n,n=20)
+```
+
+```{r}
+rights_by_post <- 0:1 %>% map_dfr(~agree_post_contents %>%
+    mutate(length=.x, agree=str_extract_all(post_content, str_c("re ", strrep("[\\w']+ ",.x), "(correct|right|wrong)")))
+) %>%
+  unnest(agree) %>%
+  mutate(agree=str_to_lower(agree))
+```
+
+
+```{r}
+rights_by_post %>% 
+  count(length,agree) %>% 
+  group_by(length) %>% 
+  slice_max(n,n=20)
+```
+

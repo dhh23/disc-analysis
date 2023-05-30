@@ -1,0 +1,105 @@
+---
+title: "Incel analysis test"
+date: "`r Sys.Date()`"
+output: 
+  md_document:
+    variant: gfm 
+    toc: yes
+  html_notebook:
+    toc: yes
+    code_folding: hide
+---
+
+```{r setup}
+library(ggbeeswarm)
+library(dplyr)
+library(gt)
+source(here::here("src/common_basis.R"))
+```
+```{r}
+incel_posts_c %>%
+  count(year=year(time_posted),month=month(time_posted)) %>%
+  mutate(month=as.Date(str_c(year,'-',month,'-01'))) %>%
+  ggplot(aes(x=month,y=n)) +
+  geom_line() +
+  scale_y_continuous(labels=scales::number) + 
+  xlab("Month") +
+  ylab("Posts") +
+  theme_hsci_discrete()
+```
+```{r}
+
+incel_quotes_c %>% filter(quoted_post_id==0)
+
+```
+
+
+```{r}
+incel_top_quoted = incel_quotes_c %>% filter(quoted_post_id!=0) %>%
+  group_by(quoted_post_id) %>%tally(sort =TRUE) %>% collect()
+incel_top_quoted
+```
+
+
+```{r}
+incel_posts_local <- incel_posts_c %>% collect()
+```
+
+```{r}
+
+by <- join_by(quoted_post_id == post_id)
+top_quoted_posts <- left_join(incel_top_quoted, incel_posts_local, by) 
+top_quoted_posts
+
+```
+```{r}
+top_quoted_posts <- rename(top_quoted_posts, number_of_replies = n) 
+top_quoted_posts
+
+```
+```{r}
+top_quoted_posts <- top_quoted_posts %>% filter(number_of_replies > 2)
+top_quoted_posts
+
+```
+
+```{r}
+
+library(purrr)
+library(rvest)
+
+top_quoted_posts['cleaned_text'] <- map_chr(top_quoted_posts$post_html, function(x) {
+  x <- read_html(x)
+  div <- html_nodes(x, "div.bbWrapper")
+  strings <- html_text(div, trim = TRUE)
+  paste(strings, collapse = " ")
+})
+
+
+top_quoted_posts
+```
+```{r}
+top_quoted_posts <- filter(number_of_replies > 9)
+
+write_tsv(top_quoted_posts, "top_quoted_posts.tsv", quote="needed", na="")
+```
+
+```{r}
+top_quoted_posts['wordcount'] <- str_count(top_quoted_posts$cleaned_text, '\\w+')
+top_quoted_posts
+
+```
+```{r}
+ p <- ggplot(top_quoted_posts, aes(x=wordcount,y=number_of_replies)) +
+  geom_point() +
+  coord_cartesian(xlim = c(0, 50), ylim = c(6, 25), expand = FALSE) +
+  scale_y_continuous(labels=scales::number) + 
+  xlab("Wordcount") +
+  ylab("Number of replies") +
+  theme_hsci_discrete()
+
+p
+
+```
+
+```
