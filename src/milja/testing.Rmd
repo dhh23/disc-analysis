@@ -36,7 +36,7 @@ incel_quotes_c %>% filter(quoted_post_id==0)
 
 ```{r}
 incel_top_quoted = incel_quotes_c %>% filter(quoted_post_id!=0) %>%
-  group_by(quoted_post_id) %>%tally(sort =TRUE) %>% filter(n > 9) %>% collect()
+  group_by(quoted_post_id) %>%tally(sort =TRUE) %>% collect()
 incel_top_quoted
 ```
 
@@ -53,14 +53,16 @@ top_quoted_posts
 
 ```
 ```{r}
-top_quoted_posts <- rename(top_quoted_posts, number_of_replies = n)
+top_quoted_posts <- rename(top_quoted_posts, number_of_replies = n) 
 top_quoted_posts
 
 ```
 ```{r}
-write_tsv(top_quoted_posts, "top_quoted_posts.tsv", quote="needed", na="")
+top_quoted_posts <- top_quoted_posts %>% filter(number_of_replies > 2)
+top_quoted_posts
 
 ```
+
 ```{r}
 
 library(purrr)
@@ -75,4 +77,29 @@ top_quoted_posts['cleaned_text'] <- map_chr(top_quoted_posts$post_html, function
 
 
 top_quoted_posts
+```
+```{r}
+top_quoted_posts <- filter(number_of_replies > 9)
+
+write_tsv(top_quoted_posts, "top_quoted_posts.tsv", quote="needed", na="")
+```
+
+```{r}
+top_quoted_posts['wordcount'] <- str_count(top_quoted_posts$cleaned_text, '\\w+')
+top_quoted_posts
+
+```
+```{r}
+ p <- ggplot(top_quoted_posts, aes(x=wordcount,y=number_of_replies)) +
+  geom_point() +
+  coord_cartesian(xlim = c(0, 50), ylim = c(6, 25), expand = FALSE) +
+  scale_y_continuous(labels=scales::number) + 
+  xlab("Wordcount") +
+  ylab("Number of replies") +
+  theme_hsci_discrete()
+
+p
+
+```
+
 ```
