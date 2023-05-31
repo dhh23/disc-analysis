@@ -54,6 +54,9 @@ top_quoted_posts
 ```
 ```{r}
 top_quoted_posts <- rename(top_quoted_posts, number_of_replies = n) 
+
+top_quoted_posts["reply_post_order_ratio"] <- top_quoted_posts$number_of_replies*top_quoted_posts$post_order_in_thread 
+
 top_quoted_posts
 
 ```
@@ -79,7 +82,7 @@ top_quoted_posts['cleaned_text'] <- map_chr(top_quoted_posts$post_html, function
 top_quoted_posts
 ```
 ```{r}
-top_quoted_posts <- filter(number_of_replies > 9)
+top_quoted_posts %>% filter(number_of_replies > 2)
 
 write_tsv(top_quoted_posts, "top_quoted_posts.tsv", quote="needed", na="")
 ```
@@ -90,16 +93,158 @@ top_quoted_posts
 
 ```
 ```{r}
- p <- ggplot(top_quoted_posts, aes(x=wordcount,y=number_of_replies)) +
-  geom_point() +
-  coord_cartesian(xlim = c(0, 50), ylim = c(6, 25), expand = FALSE) +
-  scale_y_continuous(labels=scales::number) + 
+```
+
+
+```{r}
+wordcount_graph <- ggplot(top_quoted_posts, aes(x=wordcount,y=number_of_replies)) +
+  geom_point(color="#330099") +
+  coord_cartesian(xlim = c(0, 1100), ylim = c(3, 25), expand = FALSE) +
+  scale_y_continuous(breaks = c(3, 5, 10, 15, 20, 25)) + 
   xlab("Wordcount") +
   ylab("Number of replies") +
   theme_hsci_discrete()
 
-p
+wordcount_graph
+```
+
+
+
+```{r}
+ post_order_graph <- ggplot(top_quoted_posts, aes(x=post_order_in_thread,y=number_of_replies)) +
+  geom_point(color="#ff0066") +
+  coord_cartesian(xlim=c(0, 2600), ylim = c(3, 25), expand = FALSE) +
+  scale_y_continuous(breaks = c(3, 5, 10, 15, 20, 25)) + 
+  xlab("Post order in thread") +
+  ylab("Number of replies") +
+  theme_hsci_discrete()
+
+post_order_graph
 
 ```
+
+```{r}
+weighted_replies_graph <- ggplot(top_quoted_posts, aes(x=wordcount,y=reply_post_order_ratio)) +
+  geom_point() +
+  coord_cartesian(xlim=c(0, 501), expand = FALSE) +
+  scale_y_continuous(labels=scales::number) + 
+  xlab("Wordcount") +
+  ylab("Number of replies * position in thread") +
+  theme_hsci_discrete()
+
+weighted_replies_graph
+
+```
+
+```{r}
+
+
+more_replies_than_expected <- arrange(top_quoted_posts, desc(reply_post_order_ratio)) %>% filter(row_number() %in% 1:1000) 
+
+
+# write_tsv(more_replies_than_expected, "more_replies_than_expected.tsv", quote="needed", na="")
+
+more_replies_than_expected  <- more_replies_than_expected %>% filter(reply_post_order_ratio>200)
+more_replies_than_expected
+
+```
+```{r}
+engaging_threads <- more_replies_than_expected %>% filter(post_order_in_thread>1) %>% filter(wordcount>20) %>% group_by(thread_id) %>% tally(sort=TRUE)
+
+incel_threads_local <- incel_threads_c %>% collect()
+
+engaging_threads_10 <- engaging_threads %>% filter(row_number() %in% 1:10) %>% left_join(incel_threads_local)
+
+engaging_threads_10
+
+
+```
+```{r}
+engaging_threads_weighted <- more_replies_than_expected  %>%  filter(post_order_in_thread>1) %>% filter(wordcount>20) %>% group_by(thread_id) %>% tally(sort=TRUE, wt=reply_post_order_ratio) %>% left_join(incel_threads_local)
+
+
+
+engaging_threads_weighted10 <- engaging_threads_weighted %>% filter(row_number() %in% 1:10) 
+engaging_threads_weighted10
+
+```
+```{r}
+engaging_threads_graph <- ggplot(engaging_threads_weighted, aes(x=posts,y=n)) +
+  geom_point() +
+  coord_cartesian(xlim=c(0, 100), expand = FALSE) +
+  scale_y_continuous(labels=scales::number) + 
+  scale_x_continuous() +
+  xlab("Posts in thread") +
+  ylab("Thread 'karma'") +
+  theme_hsci_discrete()
+
+engaging_threads_graph
+```
+
+
+```{r}
+engaging_users <- more_replies_than_expected %>% filter(post_order_in_thread>1) %>% filter(wordcount>20) %>% group_by(poster_id) %>% tally(sort=TRUE) %>% rename(karma =n)
+
+
+# incel_users_local <- incel_users_c %>% collect()
+
+by <- join_by(poster_id == user_id)
+
+engaging_users <- engaging_users %>% left_join(incel_users_local, by)
+engaging_users
+
+
+median(incel_users_local$user_total_posts)
+```
+
+```{r}
+
+engaging_users_weighted <- more_replies_than_expected %>% filter(post_order_in_thread>1) %>% filter(wordcount>20) %>% group_by(poster_id) %>% tally(sort=TRUE, wt=reply_post_order_ratio) %>% rename(karma = n)
+
+by <- join_by(poster_id == user_id)
+
+engaging_users_weighted <- engaging_users_weighted  %>% left_join(incel_users_local, by)
+engaging_users_weighted
+
+
+```
+```{r}
+engaging_users_graph <- ggplot(engaging_users_weighted, aes(x=user_total_posts,y=karma)) +
+  geom_point() +
+  coord_cartesian(xlim=c(0, 10000), expand = FALSE) +
+  scale_y_continuous(labels=scales::number) + 
+  scale_x_continuous() +
+  xlab("User's total post number") +
+  ylab("Reply 'karma'") +
+  theme_hsci_discrete()
+
+engaging_users_graph
+```
+```{r}
+engaging_users_weighted %>% filter(karma>5000)
+```
+```{r}
+poster_thread_groups <- incel_posts_local %>% group_by(thread_id, poster_id) %>% tally(sort=TRUE) %>% filter(n>5)
+
+threads_with_lots_of_posters <- poster_thread_groups %>% group_by(thread_id) %>% tally(sort=TRUE) %>% filter(n>10)
+
+```
+```{r}
+
+threads_with_lots_of_posters <- threads_with_lots_of_posters %>%  left_join(incel_threads_local)
+threads_with_lots_of_posters
+
+```
+
+
+
+
+
+
+```{r}
+only_one_reply <- incel_top_quoted %>% filter(n==1)
+only_one_reply
+```
+
 
 ```
