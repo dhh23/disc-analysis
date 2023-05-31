@@ -19,7 +19,7 @@ df_for_processing['post_text'] = df_for_processing['post_html']\
 df2 = df.drop(columns='post_html')
 
 # merge cleaned data with original data
-df_cleaned = df_for_processing.merge(df2)
+df_cleaned = df_for_processing.merge(df2, on="post_id")
 
 
 
