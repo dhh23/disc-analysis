@@ -20,9 +20,9 @@ df2 = df.drop(columns='post_html')
 
 # merge cleaned data with original data
 df_cleaned = df_for_processing.merge(df2, on="post_id")
-
+df_cleaned.drop(columns=["post_html", "contains_fakecel", "contains_truecel"])
 
 
 # subsets of posts containing fakecel/truecel
-fakecel_posts_NEW = df_cleaned[df_cleaned["cleaned_text"].str.contains("fakecel")]
-truecel_posts_NEW = df_cleaned[df_cleaned["cleaned_text"].str.contains("truecel")]
+fakecel_df = df_cleaned[df_cleaned["cleaned_text"].str.contains("fakecel")]
+truecel_df = df_cleaned[df_cleaned["cleaned_text"].str.contains("truecel")]
