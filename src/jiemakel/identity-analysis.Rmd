@@ -20,13 +20,13 @@ source(here::here("src/common_basis.R"))
 # Different -cels
  
 ```{r}
-cel_post_contents <- incel_posts_c %>% 
-  filter(str_detect(post_content,"cels?\\b")) %>% 
-  select(post_id, post_content) %>% 
+cel_post_contents <- incel_posts_cleaned_a %>% 
+  filter(str_detect(post_text,"cels?\\b")) %>% 
+  select(post_id, post_content=post_text) %>% 
   collect() 
 
 cels_by_post <- cel_post_contents %>%
-  mutate(cel=str_extract_all(post_content, "(?<! expand...)[^ \\n]+ cels?\\b|[^ \\n]*cels?\\b(?! said)")) %>%
+  mutate(cel=str_extract_all(post_content, "(?<! expand...)[^ \\n]+ cels?\\b|[^ \\n]*cels?\\b(?! said)(?!\\.is)")) %>%
   unnest(cel) %>% 
   filter(!str_detect(cel, "^@")) %>%
   select(post_id, cel) %>% 
@@ -101,18 +101,136 @@ cels_by_post %>% inner_join(fakecel_posts, join_by(post_id)) %>%
   arrange(desc(n))
 ```
 
-# You/we/they are
+# Ethnic vs racist
+
 ```{r}
-are_post_contents <- incel_posts_c %>% 
-  filter(str_detect(post_content,"(you|they|we)('re| are) ")) %>% 
-  select(post_id, post_content) %>% 
-  collect() %>%
-  mutate(post_content = post_content %>% str_replace_all("Click to expand...",".") %>% str_replace_all("\\s+"," "))
+far_right_cels <- c("stormfrontcel","nazicel","strormfrontcel","altrightcel","nationalistcel","stromfrontcel","antisemiticcel","rightcel","antisemeticcel","whitecel","jewcel","negroidcel","whitenationalistcel","kebabcel")
+ethnic_cels <- c("ethniccel","blackcel","ricecel","currycel","ethnicel","muslimcel","arabcel","browncel","spanishcel","africancel","thaicel","persiancel","polecel","pakicel")
+racist_keywords <- c("kike","nigger","nigga","whitey","blm","BLM","cumskin","jew","negroid","kebabcel")
+```
+
+```{r, eval=FALSE}
+far_right_regexp <- str_flatten(far_right_cels, collapse="|")
+incel_far_right_posts <- incel_posts_cleaned_a %>%
+  filter(str_detect(post_text, far_right_regexp)) %>%
+  inner_join(incel_posts_a, join_by(post_id)) %>%
+  compute_a(name="incel_far_right_posts", temporary=FALSE, overwrite=TRUE, unique_indexes=list(c("post_id")), indexes=list(c("thread_id")))
+ethnic_regexp <- str_flatten(ethnic_cels, collapse="|")
+incel_ethnic_posts <- incel_posts_cleaned_a %>%
+  filter(str_detect(post_text, ethnic_regexp)) %>%
+  inner_join(incel_posts_a, join_by(post_id)) %>%
+  compute_a(name="incel_ethnic_posts", temporary=FALSE, overwrite=TRUE, unique_indexes=list(c("post_id")), indexes=list(c("thread_id")))
+racist_regexp <- str_flatten(racist_keywords, collapse="|")
+incel_racist_posts <- incel_posts_cleaned_a %>%
+  filter(str_detect(post_text, racist_regexp)) %>%
+  inner_join(incel_posts_a, join_by(post_id)) %>%
+  compute_a(name="incel_racist_posts", temporary=FALSE, overwrite=TRUE, unique_indexes=list(c("post_id")), indexes=list(c("thread_id")))
+```
+
+```{r}
+incel_far_right_posts %>% 
+  anti_join(incel_ethnic_posts, join_by(post_id)) %>%
+  anti_join(incel_racist_posts, join_by(post_id)) %>%
+  summarise(posts=n(),threads=n_distinct(thread_id), posters=n_distinct(poster_id)) %>%
+  mutate(posts_per_thread=posts/threads, posts_per_user=posts/posters, users_per_thread=posters/threads)
+
+incel_ethnic_posts %>% 
+  anti_join(incel_far_right_posts, join_by(post_id)) %>%
+  anti_join(incel_racist_posts, join_by(post_id)) %>%
+  summarise(posts=n(),threads=n_distinct(thread_id), posters=n_distinct(poster_id)) %>%
+  mutate(posts_per_thread=posts/threads, posts_per_user=posts/posters, users_per_thread=posters/threads)
+
+incel_racist_posts %>% 
+  anti_join(incel_far_right_posts, join_by(post_id)) %>%
+  anti_join(incel_ethnic_posts, join_by(post_id)) %>%
+  summarise(posts=n(),threads=n_distinct(thread_id), posters=n_distinct(poster_id)) %>%
+  mutate(posts_per_thread=posts/threads, posts_per_user=posts/posters, users_per_thread=posters/threads)
+
 ```
 
 
 ```{r}
-ares_by_post <- c(1:4) %>% 
+incel_far_right_posts %>% 
+  anti_join(incel_ethnic_posts, join_by(post_id)) %>%
+  anti_join(incel_racist_posts, join_by(post_id)) %>%
+  mutate(type="far_right") %>%
+  union_all(
+    incel_ethnic_posts %>% 
+      anti_join(incel_far_right_posts, join_by(post_id)) %>%
+      anti_join(incel_racist_posts, join_by(post_id)) %>%
+      mutate(type="ethnic")
+  ) %>%
+  union_all(
+    incel_racist_posts %>% 
+      anti_join(incel_ethnic_posts, join_by(post_id)) %>%
+      anti_join(incel_far_right_posts, join_by(post_id)) %>%
+      mutate(type="racist")
+  ) %>%
+  count(type,thread_id,name="flagged_posts") %>%
+  inner_join(incel_threads_a %>% select(thread_id, total_posts=posts), join_by(thread_id)) %>%
+  mutate(flagged_proportion=flagged_posts/total_posts) %>%
+  ggplot(aes(x=type,y=flagged_proportion)) +
+  geom_quasirandom() +
+  theme_hsci_discrete()
+```
+
+```{r}
+incel_racist_posters <- incel_racist_posts %>% 
+  anti_join(incel_ethnic_posts, join_by(post_id)) %>%
+  anti_join(incel_far_right_posts, join_by(post_id)) %>%
+  distinct(poster_id)
+
+incel_ethnic_posters <- incel_ethnic_posts %>% 
+  anti_join(incel_racist_posts, join_by(post_id)) %>%
+  anti_join(incel_far_right_posts, join_by(post_id)) %>%
+  distinct(poster_id)
+
+incel_far_right_posters <- incel_far_right_posts %>% 
+  anti_join(incel_ethnic_posts, join_by(post_id)) %>%
+  anti_join(incel_racist_posts, join_by(post_id)) %>%
+  distinct(poster_id)
+```
+
+```{r}
+incel_ethnic_posters %>% 
+  inner_join(incel_racist_posters) %>% 
+  count()
+
+incel_ethnic_posters %>% 
+  anti_join(incel_racist_posters) %>% 
+  count()
+
+incel_racist_posters %>%
+  anti_join(incel_ethnic_posters) %>% 
+  count()
+
+```
+
+
+```{r}
+incel_ethnic_posters %>% 
+  inner_join(incel_posts_a) %>% 
+  summarise(posts=n(),threads=n_distinct(thread_id))
+```
+
+```{r}
+incel_racist_posters %>% 
+  inner_join(incel_posts_a) %>% 
+  summarise(posts=n(),threads=n_distinct(thread_id))
+```
+
+# You/we/they are
+```{r}
+are_post_contents <- incel_posts_cleaned_a %>% 
+  filter(str_detect(post_text,"(you|they|we)('re| are) ")) %>% 
+  select(post_id, post_text) %>% 
+  collect() %>%
+  mutate(post_content = post_text %>% str_replace_all("Click to expand...",".") %>% str_replace_all("\\s+"," "))
+```
+
+
+```{r}
+ares_by_post <- c(1:6) %>% 
   map_dfr(~are_post_contents %>%
     mutate(length= .x, are=str_extract_all(post_content, str_c("(you|they|we)('re| are)('nt| not)?( a| an| the)?", strrep(" \\w+",.x))))
   ) %>%  
@@ -134,6 +252,61 @@ ares_by_post_count <- ares_by_post %>%
   count(length, who, are, stem)
 ares_by_post_count
 ```
+```{r}
+roots <- tribble(
+  ~stem,~are,~n,
+  "R","they",1,
+  "R","we",1,
+  "R","you",1,
+  "they","they are",1,
+  "they are", "they are a",1,
+  "they are", "they are the",1,
+  "we","we are",1,
+  "we are", "we are a",1,
+  "we are", "we are the",1,
+  "we are", "we are not",1,
+  "we are not", "we are not the",1,
+  "you","you are",1,
+  "you are","you are a",1,
+  "you are","you are an",1,
+  "you are","you are white or black but",1,
+  "you are","you are not",1,
+  "you are","you are the",1,
+  "you are not","you are not a",1,
+  "you are not","you are not an",1,
+  "you are not","you are not the",1)
+ftree <- ares_by_post_count %>% mutate(stem=str_to_lower(str_c(who," ", stem)), are=str_to_lower(str_c(who, " ", are))) %>% group_by(stem,are) %>% summarise(n=sum(n),.groups="drop")
+tree <- ftree %>% filter((str_detect(are,"^you") & n>=200) | (str_detect(are,"^we") & n>25) | (str_detect(are,"^they") & n>=100)) %>% distinct(stem,are,n)
+#tree <- tree %>% anti_join(tree %>% inner_join(tree,join_by(are==stem)) %>% group_by(stem) %>% filter(n()==1),join_by(stem))
+#tree <- tree %>% anti_join(tree %>% inner_join(tree,join_by(are==stem)) %>% group_by(stem) %>% filter(n()==1),join_by(stem))
+#tree <- tree %>% anti_join(tree %>% anti_join(tree, join_by(stem==are)),join_by(are))
+#tree <- tree %>% anti_join(tree, join_by(stem==are))
+tree <- tree %>% union(ftree %>% filter(stem %in% (tree %>% anti_join(tree, join_by(are==stem)))$are,(str_detect(are,"^you") & n>=20) | (str_detect(are,"^we") & n>10) | (str_detect(are,"^they") & n>=20)) %>% select(stem,are,n))
+tree <- tree %>% union(ftree %>% filter(stem %in% (tree %>% anti_join(tree, join_by(are==stem)))$are,(str_detect(are,"^you") & n>=20) | (str_detect(are,"^we") & n>10) | (str_detect(are,"^they") & n>=20)) %>% select(stem,are,n))
+tree <- tree %>% union(ftree %>% filter(stem %in% (tree %>% anti_join(tree, join_by(are==stem)))$are,(str_detect(are,"^you") & n>=20) | (str_detect(are,"^we") & n>10) | (str_detect(are,"^they") & n>=20)) %>% select(stem,are,n))
+tree <- tree %>% union(ftree %>% filter(stem %in% (tree %>% anti_join(tree, join_by(are==stem)))$are,(str_detect(are,"^you") & n>=20) | (str_detect(are,"^we") & n>10) | (str_detect(are,"^they") & n>=20)) %>% select(stem,are,n))
+tree <- roots %>% anti_join(tree, join_by(stem,are)) %>% union(tree)
+tree <- tree %>% mutate(label=are) %>% relocate(stem,are,label)
+tree %>% anti_join(tree,join_by(stem==are))
+```
+
+```{r}
+library(treeio)
+library(ggtree)
+```
+
+
+```{r}
+tree %>% filter(str_detect(label,"^you")) %>% as.phylo() %>% ggtree(layout='circular') %<+% (tree %>% select(are,n)) + geom_tiplab(aes(size=n),show.legend = FALSE) + 
+  theme_tree(plot.margin=margin(90, 10, 90, 10))
+
+tree %>% filter(str_detect(label,"^we")) %>% as.phylo() %>% ggtree(layout='circular') %<+% (tree %>% select(are,n)) + geom_tiplab(aes(size=n),show.legend = FALSE) + 
+  theme_tree(plot.margin=margin(90, 10, 90, 10))
+
+tree %>% filter(str_detect(label,"^they")) %>% as.phylo() %>% ggtree(layout='circular') %<+% (tree %>% select(are,n)) +
+  geom_tiplab(aes(size=n),show.legend = FALSE) + 
+  theme_tree(plot.margin=margin(90, 10, 90, 10))
+```
 
 ```{r}
 top_ares <- ares_by_post_count %>% 
@@ -145,7 +318,7 @@ top_ares <- ares_by_post_count %>%
 
 ```{r}
 ares_by_post_count %>% 
-  anti_join(top_ares, join_by(who, are==stem)) %>%
+#  anti_join(top_ares, join_by(who, are==stem)) %>%
   anti_join(ares_by_post_count %>% mutate(length=length+1), join_by(who,are,length)) %>%
   select(-stem) %>%
   group_by(length, who) %>%
