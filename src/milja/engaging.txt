@@ -1,0 +1,67 @@
+engaging threads (not first post, wordcount>20): 
+
+thread_id
+<int>
+n
+<int>
+105807	24			
+81652	15			
+68697	13			
+122679	13			
+19483	10			
+86070	10			
+35806	7			
+85320	7			
+91737	7			
+116861	7		
+
+engaging threads without filtering: 
+
+thread_id
+<int>
+n
+<int>
+105807	31			
+122679	20			
+81652	18			
+35806	17			
+68697	16			
+86070	14			
+19483	11			
+91737	11			
+46928	9			
+85320	9	
+
+engaging threads, weighted (not first post, wordcount>20): 
+
+thread_id
+<int>
+n
+<int>
+105807	68275			
+122679	27849			
+81652	12474			
+85320	10130			
+86070	9344			
+122678	8715			
+35806	8124			
+68697	7203			
+19483	7139			
+85579	6762	
+
+engaging threads, weighted (no filtering): 
+
+thread_id
+<int>
+n
+<int>
+105807	84149			
+122679	35217			
+85579	29931			
+35806	18645			
+81652	16675			
+85320	15224			
+86070	13645			
+122678	13503			
+63924	9444			
+19483	8126	

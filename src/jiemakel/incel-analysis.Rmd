@@ -46,6 +46,62 @@ incel_posts_c %>%
   facet_wrap(~name,scales="free_y",ncol=1)
 ```
 
+# January phenomenon
+
+```{r}
+incel_users_c %>%
+  filter(user_joined>"2000-01-01") %>%
+  mutate(year_joined=year(user_joined),month_joined=month(user_joined)) %>%
+  select(user_joined,user_total_posts) %>%
+  collect() %>%
+  mutate(month_joined=floor_date(user_joined,"month")) %>%
+  group_by(month_joined) %>%
+  summarise(n=median(user_total_posts),.groups="drop") %>%
+  ggplot(aes(x=month_joined,y=n)) +
+#  scale_x_datetime(date_label="%Y", date_breaks="1 year") +
+  geom_line() +
+  theme_hsci_discrete()
+```
+
+
+```{r}
+incel_users_c %>%
+  mutate(year_joined=year(user_joined),month_joined=month(user_joined)) %>%
+  group_by(year_joined,month_joined) %>%
+  summarise(n=sum(user_total_posts),.groups="drop") %>%
+  mutate(month=as.Date(str_c(year_joined,'-',month_joined,'-01'))) %>%
+  ggplot(aes(x=month,y=n)) +
+  scale_x_date(date_label="%Y", date_breaks="1 year") +
+  geom_line() +
+  theme_hsci_discrete()
+```
+
+```{r}
+incel_users_c %>%
+  inner_join(incel_posts_c %>% count(user_id=poster_id, name="lounge_posts"), join_by(user_id)) %>%
+  mutate(year_joined=year(user_joined),month_joined=month(user_joined)) %>%
+  mutate(month=as.Date(str_c(year_joined,'-',month_joined,'-01'))) %>%
+  pivot_longer(lounge_posts:user_total_posts) %>%
+  ggplot(aes(x=month,y=value)) +
+  geom_quasirandom(size=0.5) +
+  scale_x_date(date_label="%Y", date_breaks="1 year") +
+  theme_hsci_discrete() +
+  facet_wrap(~name,ncol=1,scales="free_y")
+```
+
+```{r}
+incel_posts_c %>% 
+  inner_join(incel_users_c, join_by(poster_id==user_id)) %>%
+  mutate(year_joined=year(user_joined),month_joined=month(user_joined)) %>%
+  count(year_joined,month_joined) %>%
+  mutate(month=as.Date(str_c(year_joined,'-',month_joined,'-01'))) %>%
+  ggplot(aes(x=month,y=n)) +
+  geom_line() +
+  scale_x_date(date_label="%Y", date_breaks="1 year") +
+  theme_hsci_discrete()
+```
+
+
 # Post count distribution (overall/lounge)
 
 ```{r}

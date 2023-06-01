@@ -1,0 +1,53 @@
+engaging threads (not first post, wordcount>20): 
+
+105807	24	Tópico Lusófono do incels.co / Incels.co Lusophone Thread	Experiment	
+81652	15	NSFW New Zealand Mosque Double Mass Shootings (The shooter livestreamed it!)	News	
+68697	13	Kebab removal in new zealand	Serious	
+122679	13	World Cup 2022 Official Thread	NA	
+19483	10	cucktears hall of fame megathread	Soy	
+86070	10	Postmaxxing is getting out of hand	Serious	
+35806	7	Gore megathread	NSFW	
+85320	7	Polski incels.co megathread	NA	
+91737	7	Semen Retention Knights Discussion Thread	Serious	
+116861	7	Which bergercels will be rounded up first as domestic terrorist these coming months?
+
+engaging threads without filtering: 
+
+105807	31	Tópico Lusófono do incels.co / Incels.co Lusophone Thread	Experiment	
+122679	20	World Cup 2022 Official Thread	NA	
+81652	18	NSFW New Zealand Mosque Double Mass Shootings (The shooter livestreamed it!)	News	
+35806	17	Gore megathread	NSFW	
+68697	16	Kebab removal in new zealand	Serious	
+86070	14	Postmaxxing is getting out of hand	Serious	
+19483	11	cucktears hall of fame megathread	Soy	
+91737	11	Semen Retention Knights Discussion Thread	Serious	
+46928	9	I found proof SillyTruecel is female	Toxic Femininity	
+85320	9	Polski incels.co megathread
+
+
+
+engaging threads, weighted (not first post, wordcount>20): 
+
+105807	68275	Tópico Lusófono do incels.co / Incels.co Lusophone Thread	Experiment	
+122679	27849	World Cup 2022 Official Thread	NA	
+81652	12474	NSFW New Zealand Mosque Double Mass Shootings (The shooter livestreamed it!)	News	
+85320	10130	Polski incels.co megathread	NA	
+86070	9344	Postmaxxing is getting out of hand	Serious	
+122678	8715	WORLD CUP 2018 - MEGATHREAD	NA	
+35806	8124	Gore megathread	NSFW	
+68697	7203	Kebab removal in new zealand	Serious	
+19483	7139	cucktears hall of fame megathread	Soy	
+85579	6762	post aesthetically pleasing anime imagery	Serious
+
+engaging threads, weighted (no filtering): 
+
+105807	84149	Tópico Lusófono do incels.co / Incels.co Lusophone Thread	Experiment	
+122679	35217	World Cup 2022 Official Thread	NA	
+85579	29931	post aesthetically pleasing anime imagery	Serious	
+35806	18645	Gore megathread	NSFW	
+81652	16675	NSFW New Zealand Mosque Double Mass Shootings (The shooter livestreamed it!)	News	
+85320	15224	Polski incels.co megathread	NA	
+86070	13645	Postmaxxing is getting out of hand	Serious	
+122678	13503	WORLD CUP 2018 - MEGATHREAD	NA	
+63924	9444	isolationthread	NA	
+19483	8126	cucktears hall of fame megathread	Soy
