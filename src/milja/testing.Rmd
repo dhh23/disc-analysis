@@ -16,17 +16,7 @@ library(dplyr)
 library(gt)
 source(here::here("src/common_basis.R"))
 ```
-```{r}
-incel_posts_c %>%
-  count(year=year(time_posted),month=month(time_posted)) %>%
-  mutate(month=as.Date(str_c(year,'-',month,'-01'))) %>%
-  ggplot(aes(x=month,y=n)) +
-  geom_line() +
-  scale_y_continuous(labels=scales::number) + 
-  xlab("Month") +
-  ylab("Posts") +
-  theme_hsci_discrete()
-```
+
 ```{r}
 
 incel_quotes_c %>% filter(quoted_post_id==0)
@@ -36,13 +26,13 @@ incel_quotes_c %>% filter(quoted_post_id==0)
 
 ```{r}
 incel_top_quoted = incel_quotes_c %>% filter(quoted_post_id!=0) %>%
-  group_by(quoted_post_id) %>%tally(sort =TRUE) %>% collect()
+  group_by(quoted_post_id) %>%tally(sort =TRUE) %>% collect() %>% rename(number_of_replies = n)
 incel_top_quoted
 ```
 
 
 ```{r}
-incel_posts_local <- incel_posts_c %>% collect()
+# incel_posts_local <- incel_posts_c %>% collect()
 ```
 
 ```{r}
@@ -53,18 +43,14 @@ top_quoted_posts
 
 ```
 ```{r}
-top_quoted_posts <- rename(top_quoted_posts, number_of_replies = n) 
+top_quoted_posts<- top_quoted_posts %>% filter(number_of_replies>2)
 
 top_quoted_posts["reply_post_order_ratio"] <- top_quoted_posts$number_of_replies*top_quoted_posts$post_order_in_thread 
 
 top_quoted_posts
 
 ```
-```{r}
-top_quoted_posts <- top_quoted_posts %>% filter(number_of_replies > 2)
-top_quoted_posts
 
-```
 
 ```{r}
 
@@ -82,17 +68,13 @@ top_quoted_posts['cleaned_text'] <- map_chr(top_quoted_posts$post_html, function
 top_quoted_posts
 ```
 ```{r}
-top_quoted_posts %>% filter(number_of_replies > 2)
-
-write_tsv(top_quoted_posts, "top_quoted_posts.tsv", quote="needed", na="")
+# write_tsv(top_quoted_posts, "top_quoted_posts.tsv", quote="needed", na="")
 ```
 
 ```{r}
 top_quoted_posts['wordcount'] <- str_count(top_quoted_posts$cleaned_text, '\\w+')
 top_quoted_posts
 
-```
-```{r}
 ```
 
 
@@ -139,19 +121,18 @@ weighted_replies_graph
 ```{r}
 
 
-more_replies_than_expected <- arrange(top_quoted_posts, desc(reply_post_order_ratio)) %>% filter(row_number() %in% 1:1000) 
+more_replies_than_expected <- arrange(top_quoted_posts, desc(reply_post_order_ratio)) %>% filter(reply_post_order_ratio>200) 
 
 
 # write_tsv(more_replies_than_expected, "more_replies_than_expected.tsv", quote="needed", na="")
 
-more_replies_than_expected  <- more_replies_than_expected %>% filter(reply_post_order_ratio>200)
 more_replies_than_expected
 
 ```
 ```{r}
 engaging_threads <- more_replies_than_expected %>% filter(post_order_in_thread>1) %>% filter(wordcount>20) %>% group_by(thread_id) %>% tally(sort=TRUE)
 
-incel_threads_local <- incel_threads_c %>% collect()
+# incel_threads_local <- incel_threads_c %>% collect()
 
 engaging_threads_10 <- engaging_threads %>% filter(row_number() %in% 1:10) %>% left_join(incel_threads_local)
 
@@ -160,18 +141,16 @@ engaging_threads_10
 
 ```
 ```{r}
-engaging_threads_weighted <- more_replies_than_expected  %>%  filter(post_order_in_thread>1) %>% filter(wordcount>20) %>% group_by(thread_id) %>% tally(sort=TRUE, wt=reply_post_order_ratio) %>% left_join(incel_threads_local)
+engaging_threads_weighted <- more_replies_than_expected  %>%  filter(post_order_in_thread>1) %>% filter(wordcount>20) %>% group_by(thread_id) %>% tally(sort=TRUE, wt=reply_post_order_ratio) %>% rename(karma_sum = n) %>% left_join(incel_threads_local)
 
+engaging_threads_weighted["karma_avg"] <- engaging_threads_weighted$karma_sum / engaging_threads_weighted$posts
 
-
-engaging_threads_weighted10 <- engaging_threads_weighted %>% filter(row_number() %in% 1:10) 
-engaging_threads_weighted10
-
+engaging_threads_weighted %>% arrange(desc(karma_avg))
 ```
 ```{r}
-engaging_threads_graph <- ggplot(engaging_threads_weighted, aes(x=posts,y=n)) +
+engaging_threads_graph <- ggplot(engaging_threads_weighted, aes(x=posts,y=karma_avg)) +
   geom_point() +
-  coord_cartesian(xlim=c(0, 100), expand = FALSE) +
+  coord_cartesian(xlim=c(0, 2000), expand = FALSE) +
   scale_y_continuous(labels=scales::number) + 
   scale_x_continuous() +
   xlab("Posts in thread") +
@@ -242,9 +221,70 @@ threads_with_lots_of_posters
 
 
 ```{r}
-only_one_reply <- incel_top_quoted %>% filter(n==1)
-only_one_reply
+by <- join_by(post_id == quoted_post_id)
+short_thread_posts <- incel_threads_local %>% filter(posts<=100) %>% left_join(incel_posts_local) %>% inner_join(incel_top_quoted, by)
+short_thread_posts
+
+```
+```{r}
+short_thread_posts["reply_post_order_ratio"] <- short_thread_posts$number_of_replies*short_thread_posts$post_order_in_thread 
+short_thread_posts  %>% filter(number_of_replies>1) %>% arrange(desc(reply_post_order_ratio))
+
+short_threads_user_counts <- short_thread_posts %>% group_by(thread_id) %>% summarise(users_posting = n_distinct(poster_id))
+
+# short_threads_mean_karma <- short_thread_posts  %>% group_by(thread_id) %>%  summarise(mean_karma=mean(reply_post_order_ratio),                  .groups = 'drop') %>% arrange(desc(mean_karma)) 
+short_threads_sum_karma <- short_thread_posts  %>% group_by(thread_id) %>% tally(wt=reply_post_order_ratio) %>% rename(karma_sum = n) 
+
+short_threads <- short_threads_sum_karma %>% left_join(incel_threads_local)%>% left_join(short_threads_user_counts)
+short_threads["karma_avg"] <- short_threads["karma_sum"] / short_threads["posts"]
+
+short_threads
+
+```
+```{r}
+short_thread_posts %>% filter)
+  
+```
+
+```{r}
+engaging_short_threads_graph <- ggplot(short_threads, aes(x=users_posting, y=karma_avg, colour=posts)) + geom_point() + 
+annotate("text", x = 34	, y = 25, label = "B") +
+annotate("text", x = 5	, y = 44.5, label = "A") +
+annotate("text", x = 1	, y = -1, label = "C") + 
+theme_hsci_continuous() +
+  theme(legend.position = c(0.8, 0.25)) +
+xlab("Users participating") +
+ylab("Reply factor")
+
+# + geom_text(aes(label = thread_title), size = 3)
+
+engaging_short_threads_graph
+
+# A: Reddit faggotcel picking up fresh shit from his boyfriend's butt-hole, sniffs, tastes it and then cries" <-shock post, lots of users commenting that it's gross (34 users, 94 posts) https://incels.is/threads/reddit-faggotcel-picking-up-fresh-shit-from-his-boyfriends-butt-hole-sniffs-tastes-it-and-then-cries.113201/	
+
+# B: [Music] Staind's Tormented Album <- on topic, OP engages with other posters the most (5 users, 92 posts) https://incels.is/threads/music-stainds-tormented-album.174980/
+# C: Who do you talk to in real life? (1 poster, 28 posts) 	https://incels.is/threads/who-do-you-talk-to-in-real-life.139868/
+```
+```{r}
+png("poster_plot.png", units="in", width=10, height=6, res=300, bg = "transparent")
+engaging_short_threads_graph
+dev.off()
 ```
 
 
+
+```{r}
+short_threads %>% filter( users_posting ==1) %>% arrange(karma_avg)
+```
+
+```{r}
+fakecels <- read.csv(here::here("data/output/umit/fakecels.csv")) %>% group_by(thread_id) %>% tally(wt=Query.count) %>% rename(fakecel_mentions = n)
+short_threads <- short_threads %>% left_join(fakecels)
+
+fakecel_short_threads_graph <- ggplot(short_threads, aes(x=users_posting, y=karma_avg, color=fakecel_mentions)) + geom_point() +  theme_hsci_continuous() 
+
+fakecel_short_threads_graph
+
+
+```
 ```
